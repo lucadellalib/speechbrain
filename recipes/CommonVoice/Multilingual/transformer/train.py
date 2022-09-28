@@ -285,7 +285,8 @@ def dataio_prepare(hparams, tokenizer):
 
     # 1. Define datasets
     train_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
-        csv_path=os.path.join(hparams["manifest_dir"], "train.csv"), replacements={"root_dir": hparams["dataset_dir"]},
+        csv_path=os.path.join(hparams["manifest_dir"], "train.csv"),
+        replacements={"root_dir": hparams["dataset_dir"]},
     )
 
     if hparams["sorting"] == "ascending":
@@ -315,13 +316,15 @@ def dataio_prepare(hparams, tokenizer):
         )
 
     valid_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
-        csv_path=os.path.join(hparams["manifest_dir"], "dev.csv"), replacements={"root_dir": hparams["dataset_dir"]},
+        csv_path=os.path.join(hparams["manifest_dir"], "dev.csv"),
+        replacements={"root_dir": hparams["dataset_dir"]},
     )
     # We also sort the validation data so it is faster to validate
     valid_data = valid_data.filtered_sorted(sort_key="duration")
 
     test_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
-        csv_path=os.path.join(hparams["manifest_dir"], "test.csv"), replacements={"root_dir": hparams["dataset_dir"]},
+        csv_path=os.path.join(hparams["manifest_dir"], "test.csv"),
+        replacements={"root_dir": hparams["dataset_dir"]},
     )
 
     datasets = [train_data, valid_data, test_data]

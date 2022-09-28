@@ -126,7 +126,10 @@ def prepare_common_voice(
 
     output_tsv_files = []
     for i, locale in enumerate(locales):
-        _LOGGER.log(logging.INFO, "----------------------------------------------------------------------")
+        _LOGGER.log(
+            logging.INFO,
+            "----------------------------------------------------------------------",
+        )
         _LOGGER.log(logging.INFO, f"Locale: {locale}")
         locale_dir = os.path.join(dataset_dir, locale)
         if not os.path.isdir(locale_dir):
@@ -153,9 +156,7 @@ def prepare_common_voice(
 
         _LOGGER.log(logging.INFO, f"Building subdataset {dataset_size}...")
         input_train_tsv_file = os.path.join(dataset_dir, locale, "train.tsv")
-        output_train_tsv_file = os.path.join(
-            manifest_dir, locale, f"train.tsv"
-        )
+        output_train_tsv_file = os.path.join(manifest_dir, locale, f"train.tsv")
         if not os.path.isfile(output_train_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_train_tsv_file}...")
             trim_tsv_file(
@@ -170,9 +171,7 @@ def prepare_common_voice(
             )
 
         input_dev_tsv_file = os.path.join(dataset_dir, locale, "dev.tsv")
-        output_dev_tsv_file = os.path.join(
-            manifest_dir, locale, f"dev.tsv"
-        )
+        output_dev_tsv_file = os.path.join(manifest_dir, locale, f"dev.tsv")
         if not os.path.isfile(output_dev_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_dev_tsv_file}...")
             trim_tsv_file(
@@ -185,9 +184,7 @@ def prepare_common_voice(
             _LOGGER.log(logging.INFO, f"{output_dev_tsv_file} already created")
 
         input_test_tsv_file = os.path.join(dataset_dir, locale, "test.tsv")
-        output_test_tsv_file = os.path.join(
-            manifest_dir, locale, f"test.tsv"
-        )
+        output_test_tsv_file = os.path.join(manifest_dir, locale, f"test.tsv")
         if not os.path.isfile(output_test_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_test_tsv_file}...")
             trim_tsv_file(
