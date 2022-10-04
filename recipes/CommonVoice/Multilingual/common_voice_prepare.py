@@ -38,9 +38,7 @@ __all__ = [
 
 _BASENAME = os.path.basename(__file__).replace(".py", "")
 
-_LOG_DIR = os.path.join(
-    "logs", _BASENAME, datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-)
+_LOG_DIR = "logs"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,7 +57,10 @@ logging.basicConfig(
     handlers=[
         StreamHandler(),
         RotatingFileHandler(
-            os.path.join(_LOG_DIR, f"{_BASENAME}.log"),
+            os.path.join(
+                _LOG_DIR,
+                f"{_BASENAME}_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.log",
+            ),
             maxBytes=512 * 1024,
             backupCount=100,
         ),
@@ -73,6 +74,7 @@ def prepare_common_voice(
     dataset_dir: "Optional[str]" = None,
     manifest_dir: "Optional[str]" = None,
     remove_accents: "bool" = True,
+    copy_clips: "bool" = True,
 ) -> "None":
     """Prepare the data manifest CSV files for Common Voice dataset
     (see https://commonvoice.mozilla.org/en/datasets).
@@ -89,8 +91,9 @@ def prepare_common_voice(
         The Common Voice dataset version.
     dataset_dir:
         The path to the Common Voice dataset directory.
-        If empty, the dataset (~510 GB) is downloaded from Hugging Face Hub
-        (requires a Hugging Face account, see https://huggingface.co/docs/huggingface_hub/quick-start).
+        If empty, the dataset (~510 GB, more if `copy_clips` is True)
+        is downloaded from Hugging Face Hub (requires a Hugging Face
+        account, see https://huggingface.co/docs/huggingface_hub/quick-start).
         Default to ``f"data/common_voice_{dataset_version}"``.
     manifest_dir:
         The path to the directory where the data manifest CSV files
@@ -101,6 +104,9 @@ def prepare_common_voice(
     remove_accents:
         True to transform accented letters to the closest
         corresponding non-accented letters, False otherwise.
+    copy_clips:
+        True to copy the original audio clips in `manifest_dir`,
+        False otherwise.
 
     Examples
     --------
@@ -118,11 +124,17 @@ def prepare_common_voice(
     if manifest_dir is None:
         manifest_dir = f"{dataset_dir}_{dataset_size}"
 
+    if not os.path.isdir(dataset_dir) and os.path.isdir(manifest_dir):
+        _LOGGER.log(logging.INFO, f"{manifest_dir} already created")
+        return
+
     # Get dataset metadata from Hugging Face Hub
     locales = datasets.get_dataset_config_names(
         dataset_name, use_auth_token=True
     )
-    locales = ["ro", "ar"]
+
+    # Uncomment for debugging
+    # locales = ["ro", "ar"]
 
     output_tsv_files = []
     for i, locale in enumerate(locales):
@@ -159,7 +171,7 @@ def prepare_common_voice(
         output_train_tsv_file = os.path.join(manifest_dir, locale, f"train.tsv")
         if not os.path.isfile(output_train_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_train_tsv_file}...")
-            trim_tsv_file(
+            preprocess_tsv_file(
                 input_train_tsv_file,
                 output_train_tsv_file,
                 max_duration_s["train"],
@@ -174,7 +186,7 @@ def prepare_common_voice(
         output_dev_tsv_file = os.path.join(manifest_dir, locale, f"dev.tsv")
         if not os.path.isfile(output_dev_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_dev_tsv_file}...")
-            trim_tsv_file(
+            preprocess_tsv_file(
                 input_dev_tsv_file,
                 output_dev_tsv_file,
                 max_duration_s["dev"],
@@ -187,7 +199,7 @@ def prepare_common_voice(
         output_test_tsv_file = os.path.join(manifest_dir, locale, f"test.tsv")
         if not os.path.isfile(output_test_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_test_tsv_file}...")
-            trim_tsv_file(
+            preprocess_tsv_file(
                 input_test_tsv_file,
                 output_test_tsv_file,
                 max_duration_s["test"],
@@ -243,17 +255,30 @@ def prepare_common_voice(
     else:
         _LOGGER.log(logging.INFO, f"{test_csv_file} already created")
 
+    if copy_clips:
+        _LOGGER.log(logging.INFO, f"Copying clips...")
+        for csv_file in [train_csv_file, dev_csv_file, test_csv_file]:
+            with open(csv_file) as f:
+                csv_reader = csv.reader(f, quoting=csv.QUOTE_NONE)
+                _ = next(csv_reader)
+                for row in csv_reader:
+                    clip_file = row[2]
+                    source = clip_file.replace("$root_dir", dataset_dir)
+                    destination = clip_file.replace("$root_dir", manifest_dir)
+                    os.makedirs(os.path.dirname(destination), exist_ok=True)
+                    shutil.copyfile(source, destination)
+
     _LOGGER.log(logging.INFO, "Done!")
 
 
 # Cache file: durations_s, total_duration_s to improve performance
 # when `prepare_common_voice` is called multiple times
-_TRIM_TSV_FILE_CACHE: "Dict[str, Tuple[List[float], float]]" = {}
+_PREPROCESS_TSV_FILE_CACHE: "Dict[str, Tuple[List[float], float]]" = {}
 
 
 # Adapted from:
 # https://github.com/speechbrain/speechbrain/blob/v0.5.13/recipes/CommonVoice/common_voice_prepare.py
-def trim_tsv_file(
+def preprocess_tsv_file(
     input_tsv_file: "str",
     output_tsv_file: "str",
     max_total_duration_s: "Optional[float]",
@@ -261,7 +286,10 @@ def trim_tsv_file(
 ) -> "None":
     """Deterministically remove rows from an input TSV file until
     `total_duration_s` <= `max_total_duration_s`, where `total_duration_s`
-    is the sum of the durations in seconds of the listed audio clips (one for each row).
+    is the sum of the durations in seconds of the listed audio clips (one for each row);
+
+    Standard Common Voice preprocessing (rename fields, remove accents, etc.) is applied
+    to each row.
 
     Parameters
     ----------
@@ -278,7 +306,7 @@ def trim_tsv_file(
 
     Examples
     --------
-    >>> trim_tsv_file("data/common_voice_10_0/en/test.tsv", "data/common_voice_10_0_small/en/test.tsv", 15 * 60)
+    >>> preprocess_tsv_file("data/common_voice_10_0/en/test.tsv", "data/common_voice_10_0_small/en/test.tsv", 15 * 60)
 
     """
     # Setting backend to sox-io (needed to read MP3 files)
@@ -288,7 +316,9 @@ def trim_tsv_file(
     # Header: client_id path sentence up_votes down_votes age gender accents locale segment
     _LOGGER.log(logging.INFO, f"Reading input TSV file ({input_tsv_file})...")
     try:
-        durations_s, total_duration_s = _TRIM_TSV_FILE_CACHE[input_tsv_file]
+        durations_s, total_duration_s = _PREPROCESS_TSV_FILE_CACHE[
+            input_tsv_file
+        ]
     except KeyError:
         with open(input_tsv_file) as f:
             tsv_reader = csv.reader(f, delimiter="\t", quoting=csv.QUOTE_NONE)
@@ -308,7 +338,10 @@ def trim_tsv_file(
                     logging.DEBUG,
                     f"Reading {clip_file} (duration: {duration_s})...",
                 )
-            _TRIM_TSV_FILE_CACHE[input_tsv_file] = durations_s, total_duration_s
+            _PREPROCESS_TSV_FILE_CACHE[input_tsv_file] = (
+                durations_s,
+                total_duration_s,
+            )
 
     if max_total_duration_s is None:
         max_total_duration_s = total_duration_s
@@ -472,4 +505,3 @@ if __name__ == "__main__":
     prepare_common_voice("small")
     prepare_common_voice("medium")
     prepare_common_voice("large")
-    prepare_common_voice("full")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Recipe for training a sequence-to-sequence ASR system with CommonVoice.
+"""Recipe for training a sequence-to-sequence ASR system with Common Voice.
 The system employs an encoder, a decoder, and an attention mechanism
 between them. Decoding is performed with beamsearch.
 To run this recipe, do the following:
@@ -16,6 +16,7 @@ training languages (all CommonVoice languages), and many
 other possible variations.
 Authors
  * Titouan Parcollet 2020
+ * Luca Della Libera 2022
 """
 
 import os
@@ -181,7 +182,7 @@ def dataio_prepare(hparams, tokenizer):
     # 1. Define datasets
     train_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
         csv_path=os.path.join(hparams["manifest_dir"], "train.csv"),
-        replacements={"root_dir": hparams["dataset_dir"]},
+        replacements={"root_dir": hparams["manifest_dir"]},
     )
 
     if hparams["sorting"] == "ascending":
@@ -212,14 +213,14 @@ def dataio_prepare(hparams, tokenizer):
 
     valid_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
         csv_path=os.path.join(hparams["manifest_dir"], "dev.csv"),
-        replacements={"root_dir": hparams["dataset_dir"]},
+        replacements={"root_dir": hparams["manifest_dir"]},
     )
     # We also sort the validation data so it is faster to validate
     valid_data = valid_data.filtered_sorted(sort_key="duration")
 
     test_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
         csv_path=os.path.join(hparams["manifest_dir"], "test.csv"),
-        replacements={"root_dir": hparams["dataset_dir"]},
+        replacements={"root_dir": hparams["manifest_dir"]},
     )
 
     # We also sort the test data so it is faster to test

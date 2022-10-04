@@ -39,6 +39,35 @@ conda remove --n multilingual-env --all
 
 ---------------------------------------------------------------------------------------------------------
 
+## ▶️ Quickstart
+
+In this example we will train CTC on Common Voice 10.0 `small`.
+Navigate to `<path-to-repository>/recipes/CommonVoice/Multilingual/ctc`, open a terminal and run:
+
+```
+conda activate multilingual-env
+python train.py hparams/train_small.yaml
+```
+
+**NOTE**: you can download Common Voice 10.0 beforehand, build the `small`, `medium` and `large` variants
+(requires ~1.2 TB of free space) and store them for later use.
+To do so, navigate to `<path-to-repository>/recipes/CommonVoice/Multilingual`, open a terminal and run:
+
+```
+conda activate multilingual-env
+python common_voice_prepare.py
+```
+
+It is recommended to compress the downloaded datasets into `tar.gz` archives to store them more efficiently:
+
+```
+cd data
+tar -czvf common_voice_10_0_<size>.tar.gz common_voice_10_0_<size>
+rm -r common_voice_10_0_<size>
+```
+
+---------------------------------------------------------------------------------------------------------
+
 ## 📧 Contact
 
 [luca.dellalib@gmail.com](mailto:luca.dellalib@gmail.com)
