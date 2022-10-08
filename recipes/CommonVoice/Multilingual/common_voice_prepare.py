@@ -16,6 +16,7 @@
 # limitations under the License.
 # ==============================================================================
 
+import argparse
 import csv
 import logging
 import os
@@ -41,6 +42,11 @@ _BASENAME = os.path.basename(__file__).replace(".py", "")
 _LOG_DIR = "logs"
 
 _LOGGER = logging.getLogger(__name__)
+
+# Random indices are not generated on the fly but statically read from a predefined
+# file to avoid reproducibility issues on different platforms and/or Python versions
+with open(os.path.join(os.path.dirname(__file__), "random_idxes.txt")) as f:
+    _RANDOM_IDXES = [int(line) for line in f]
 
 _MAX_DURATIONS_S = {
     "small": {"train": 1 * 60 * 60, "dev": 15 * 60, "test": 15 * 60},
@@ -75,6 +81,7 @@ def prepare_common_voice(
     manifest_dir: "Optional[str]" = None,
     remove_accents: "bool" = True,
     copy_clips: "bool" = True,
+    debug: "bool" = True,
 ) -> "None":
     """Prepare the data manifest CSV files for Common Voice dataset
     (see https://commonvoice.mozilla.org/en/datasets).
@@ -107,6 +114,8 @@ def prepare_common_voice(
     copy_clips:
         True to copy the original audio clips in `manifest_dir`,
         False otherwise.
+    debug:
+        True to enable debug mode, False otherwise.
 
     Examples
     --------
@@ -129,12 +138,11 @@ def prepare_common_voice(
         return
 
     # Get dataset metadata from Hugging Face Hub
-    locales = datasets.get_dataset_config_names(
-        dataset_name, use_auth_token=True
+    locales = (
+        datasets.get_dataset_config_names(dataset_name, use_auth_token=True)
+        if not debug
+        else ["ro", "ar"]
     )
-
-    # Uncomment for debugging
-    # locales = ["ro", "ar"]
 
     output_tsv_files = []
     for i, locale in enumerate(locales):
@@ -166,7 +174,7 @@ def prepare_common_voice(
 
         max_duration_s = _MAX_DURATIONS_S[dataset_size]
 
-        _LOGGER.log(logging.INFO, f"Building subdataset {dataset_size}...")
+        _LOGGER.log(logging.INFO, f"Building dataset {dataset_size}...")
         input_train_tsv_file = os.path.join(dataset_dir, locale, "train.tsv")
         output_train_tsv_file = os.path.join(manifest_dir, locale, f"train.tsv")
         if not os.path.isfile(output_train_tsv_file):
@@ -276,20 +284,18 @@ def prepare_common_voice(
 _PREPROCESS_TSV_FILE_CACHE: "Dict[str, Tuple[List[float], float]]" = {}
 
 
-# Adapted from:
-# https://github.com/speechbrain/speechbrain/blob/v0.5.13/recipes/CommonVoice/common_voice_prepare.py
 def preprocess_tsv_file(
     input_tsv_file: "str",
     output_tsv_file: "str",
     max_total_duration_s: "Optional[float]",
     remove_accents: "bool" = True,
 ) -> "None":
-    """Deterministically remove rows from an input TSV file until
+    """Pseudorandomly remove rows from an input TSV file until
     `total_duration_s` <= `max_total_duration_s`, where `total_duration_s`
-    is the sum of the durations in seconds of the listed audio clips (one for each row);
+    is the sum of the durations in seconds of the remaining audio clips.
 
-    Standard Common Voice preprocessing (rename fields, remove accents, etc.) is applied
-    to each row.
+    Standard Common Voice preprocessing (rename fields, remove accents, etc.)
+    is applied to each row.
 
     Parameters
     ----------
@@ -356,13 +362,25 @@ def preprocess_tsv_file(
         logging.INFO,
         f"Total duration in seconds (before trimming): {total_duration_s}",
     )
-    num_removed_rows = 0
+    removed_row_idxes = set()
+    i = 0
     while total_duration_s > max_total_duration_s:
-        duration_s = durations_s[num_removed_rows]
+        try:
+            idx = _RANDOM_IDXES[i]
+        except IndexError:
+            raise IndexError(
+                f"The number of rows ({len(durations_s) + 1}) in {input_tsv_file} "
+                f"must be in the integer interval [1, {len(_RANDOM_IDXES) + 1}]"
+            )
+        i += 1
+        try:
+            duration_s = durations_s[idx]
+        except IndexError:
+            continue
         total_duration_s -= duration_s
-        num_removed_rows += 1
-        _LOGGER.log(logging.DEBUG, f"Removing row {num_removed_rows}...")
-    _LOGGER.log(logging.INFO, f"Removed {num_removed_rows} rows")
+        removed_row_idxes.add(idx)
+        _LOGGER.log(logging.DEBUG, f"Removing row {idx + 1}...")
+    _LOGGER.log(logging.INFO, f"Removed {len(removed_row_idxes)} rows")
     _LOGGER.log(
         logging.INFO,
         f"Total duration in seconds (after trimming): {total_duration_s}",
@@ -379,7 +397,7 @@ def preprocess_tsv_file(
         # Add "ID" and "duration" fields
         tsv_writer.writerow(["ID"] + header + ["duration"])
         for i, row in enumerate(tsv_reader):
-            if i < num_removed_rows:
+            if i in removed_row_idxes:
                 continue
 
             sentence = row[2]
@@ -502,6 +520,16 @@ def merge_tsv_files(
 
 
 if __name__ == "__main__":
-    prepare_common_voice("small")
-    prepare_common_voice("medium")
-    prepare_common_voice("large")
+    parser = argparse.ArgumentParser(description="Prepare Common Voice 10.0")
+    parser.add_argument(
+        "dataset_size",
+        nargs="+",
+        choices=["small", "medium", "large", "full"],
+        help="dataset size",
+    )
+    parser.add_argument(
+        "-d", "--debug", action="store_true", help="enable debug mode",
+    )
+    args = parser.parse_args()
+    for dataset_size in args.dataset_size:
+        prepare_common_voice(dataset_size, debug=args.debug)

@@ -55,7 +55,7 @@ To do so, navigate to `<path-to-repository>/recipes/CommonVoice/Multilingual`, o
 
 ```
 conda activate multilingual-env
-python common_voice_prepare.py
+python common_voice_prepare.py small medium large
 ```
 
 It is recommended to compress the downloaded datasets into `tar.gz` archives to store them more efficiently:

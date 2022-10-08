@@ -43,7 +43,7 @@ lr_adam: 1.0
 lr_sgd: 0.00003
 
 # BPE parameters
-token_type: unigram  # ["unigram", "bpe", "char"]
+token_type: char  # ["unigram", "bpe", "char"]
 character_coverage: 1.0
 
 # Feature parameters
