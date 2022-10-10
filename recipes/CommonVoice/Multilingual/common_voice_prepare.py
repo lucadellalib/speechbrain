@@ -79,9 +79,8 @@ def prepare_common_voice(
     dataset_version: "str" = "10_0",
     dataset_dir: "Optional[str]" = None,
     manifest_dir: "Optional[str]" = None,
-    remove_accents: "bool" = True,
     copy_clips: "bool" = True,
-    debug: "bool" = True,
+    debug: "bool" = False,
 ) -> "None":
     """Prepare the data manifest CSV files for Common Voice dataset
     (see https://commonvoice.mozilla.org/en/datasets).
@@ -108,9 +107,6 @@ def prepare_common_voice(
         manifest CSV files (and intermediate TSV files) are created
         on the fly.
         Default to ``f"{dataset_dir}_{dataset_size}".
-    remove_accents:
-        True to transform accented letters to the closest
-        corresponding non-accented letters, False otherwise.
     copy_clips:
         True to copy the original audio clips in `manifest_dir`,
         False otherwise.
@@ -141,7 +137,7 @@ def prepare_common_voice(
     locales = (
         datasets.get_dataset_config_names(dataset_name, use_auth_token=True)
         if not debug
-        else ["ro", "ar"]
+        else ["it", "ar"]
     )
 
     output_tsv_files = []
@@ -151,8 +147,8 @@ def prepare_common_voice(
             "----------------------------------------------------------------------",
         )
         _LOGGER.log(logging.INFO, f"Locale: {locale}")
-        locale_dir = os.path.join(dataset_dir, locale)
-        if not os.path.isdir(locale_dir):
+        input_locale_dir = os.path.join(dataset_dir, locale)
+        if not os.path.isdir(input_locale_dir):
             _LOGGER.log(logging.INFO, "Downloading dataset...")
             cache_dir = os.path.join(dataset_dir, "cache")
             datasets.load_dataset(
@@ -166,7 +162,7 @@ def prepare_common_voice(
                 extracted_dir, os.listdir(extracted_dir)[0]
             )
             shutil.move(
-                os.path.join(extracted_dir, locale), locale_dir,
+                os.path.join(extracted_dir, locale), input_locale_dir,
             )
             shutil.rmtree(cache_dir)
         else:
@@ -175,43 +171,39 @@ def prepare_common_voice(
         max_duration_s = _MAX_DURATIONS_S[dataset_size]
 
         _LOGGER.log(logging.INFO, f"Building dataset {dataset_size}...")
-        input_train_tsv_file = os.path.join(dataset_dir, locale, "train.tsv")
-        output_train_tsv_file = os.path.join(manifest_dir, locale, f"train.tsv")
+        output_locale_dir = os.path.join(manifest_dir, locale)
+        input_train_tsv_file = os.path.join(input_locale_dir, "train.tsv")
+        output_train_tsv_file = os.path.join(output_locale_dir, "train.tsv")
         if not os.path.isfile(output_train_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_train_tsv_file}...")
-            preprocess_tsv_file(
+            trim_tsv_file(
                 input_train_tsv_file,
                 output_train_tsv_file,
                 max_duration_s["train"],
-                remove_accents,
             )
         else:
             _LOGGER.log(
                 logging.INFO, f"{output_train_tsv_file} already created"
             )
 
-        input_dev_tsv_file = os.path.join(dataset_dir, locale, "dev.tsv")
-        output_dev_tsv_file = os.path.join(manifest_dir, locale, f"dev.tsv")
+        input_dev_tsv_file = os.path.join(input_locale_dir, "dev.tsv")
+        output_dev_tsv_file = os.path.join(output_locale_dir, "dev.tsv")
         if not os.path.isfile(output_dev_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_dev_tsv_file}...")
-            preprocess_tsv_file(
-                input_dev_tsv_file,
-                output_dev_tsv_file,
-                max_duration_s["dev"],
-                remove_accents,
+            trim_tsv_file(
+                input_dev_tsv_file, output_dev_tsv_file, max_duration_s["dev"],
             )
         else:
             _LOGGER.log(logging.INFO, f"{output_dev_tsv_file} already created")
 
-        input_test_tsv_file = os.path.join(dataset_dir, locale, "test.tsv")
-        output_test_tsv_file = os.path.join(manifest_dir, locale, f"test.tsv")
+        input_test_tsv_file = os.path.join(input_locale_dir, "test.tsv")
+        output_test_tsv_file = os.path.join(output_locale_dir, "test.tsv")
         if not os.path.isfile(output_test_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_test_tsv_file}...")
-            preprocess_tsv_file(
+            trim_tsv_file(
                 input_test_tsv_file,
                 output_test_tsv_file,
                 max_duration_s["test"],
-                remove_accents,
             )
         else:
             _LOGGER.log(logging.INFO, f"{output_test_tsv_file} already created")
@@ -231,71 +223,96 @@ def prepare_common_voice(
                     _LOGGER.log(logging.INFO, f"Removing {file}...")
                 except Exception:
                     pass
+            # If directory is empty, remove
+            if not os.listdir(output_locale_dir):
+                _LOGGER.log(logging.INFO, f"Removing {output_locale_dir}...")
+                os.rmdir(output_locale_dir)
             for _ in range(3):
                 output_tsv_files.pop(-1)
 
-    _LOGGER.log(logging.INFO, f"Creating data manifest CSV files...")
+    _LOGGER.log(logging.INFO, f"Creating data manifest raw CSV files...")
 
-    train_csv_file = os.path.join(manifest_dir, f"train.csv")
-    if not os.path.isfile(train_csv_file):
-        _LOGGER.log(logging.INFO, f"Creating {train_csv_file}...")
+    train_raw_csv_file = os.path.join(manifest_dir, "train_raw.csv")
+    if not os.path.isfile(train_raw_csv_file):
+        _LOGGER.log(logging.INFO, f"Creating {train_raw_csv_file}...")
         merge_tsv_files(
-            [f for f in output_tsv_files if "train" in f], train_csv_file
+            [f for f in output_tsv_files if "train" in f], train_raw_csv_file
         )
     else:
-        _LOGGER.log(logging.INFO, f"{train_csv_file} already created")
+        _LOGGER.log(logging.INFO, f"{train_raw_csv_file} already created")
 
-    dev_csv_file = os.path.join(manifest_dir, f"dev.csv")
-    if not os.path.isfile(dev_csv_file):
-        _LOGGER.log(logging.INFO, f"Creating {dev_csv_file}...")
+    dev_raw_csv_file = os.path.join(manifest_dir, "dev_raw.csv")
+    if not os.path.isfile(dev_raw_csv_file):
+        _LOGGER.log(logging.INFO, f"Creating {dev_raw_csv_file}...")
         merge_tsv_files(
-            [f for f in output_tsv_files if "dev" in f], dev_csv_file
+            [f for f in output_tsv_files if "dev" in f], dev_raw_csv_file
         )
     else:
-        _LOGGER.log(logging.INFO, f"{dev_csv_file} already created")
+        _LOGGER.log(logging.INFO, f"{dev_raw_csv_file} already created")
 
-    test_csv_file = os.path.join(manifest_dir, f"test.csv")
-    if not os.path.isfile(test_csv_file):
-        _LOGGER.log(logging.INFO, f"Creating {test_csv_file}...")
+    test_raw_csv_file = os.path.join(manifest_dir, "test_raw.csv")
+    if not os.path.isfile(test_raw_csv_file):
+        _LOGGER.log(logging.INFO, f"Creating {test_raw_csv_file}...")
         merge_tsv_files(
-            [f for f in output_tsv_files if "test" in f], test_csv_file
+            [f for f in output_tsv_files if "test" in f], test_raw_csv_file
         )
     else:
-        _LOGGER.log(logging.INFO, f"{test_csv_file} already created")
+        _LOGGER.log(logging.INFO, f"{test_raw_csv_file} already created")
 
     if copy_clips:
         _LOGGER.log(logging.INFO, f"Copying clips...")
-        for csv_file in [train_csv_file, dev_csv_file, test_csv_file]:
+        for csv_file in [
+            train_raw_csv_file,
+            dev_raw_csv_file,
+            test_raw_csv_file,
+        ]:
             with open(csv_file) as f:
-                csv_reader = csv.reader(f, quoting=csv.QUOTE_NONE)
-                _ = next(csv_reader)
+                csv_reader = csv.reader(f)
+                try:
+                    _ = next(csv_reader)
+                except StopIteration:
+                    continue
                 for row in csv_reader:
-                    clip_file = row[2]
-                    source = clip_file.replace("$root_dir", dataset_dir)
-                    destination = clip_file.replace("$root_dir", manifest_dir)
+                    clip_file = row[1]
+                    locale = row[-3]
+                    source = os.path.join(
+                        dataset_dir, locale, "clips", clip_file
+                    )
+                    destination = os.path.join(
+                        manifest_dir, locale, "clips", clip_file
+                    )
                     os.makedirs(os.path.dirname(destination), exist_ok=True)
                     shutil.copyfile(source, destination)
+
+    _LOGGER.log(logging.INFO, f"Creating data manifest CSV files...")
+    for raw_csv_file in [
+        train_raw_csv_file,
+        dev_raw_csv_file,
+        test_raw_csv_file,
+    ]:
+        csv_file = raw_csv_file.replace("_raw", "")
+        if not os.path.isfile(csv_file):
+            preprocess_csv_file(raw_csv_file, csv_file)
+        else:
+            _LOGGER.log(logging.INFO, f"{csv_file} already created")
 
     _LOGGER.log(logging.INFO, "Done!")
 
 
 # Cache file: durations_s, total_duration_s to improve performance
-# when `prepare_common_voice` is called multiple times
-_PREPROCESS_TSV_FILE_CACHE: "Dict[str, Tuple[List[float], float]]" = {}
+# when multiple dataset sizes are prepared sequentially within the
+# same run (e.g. python prepare_common_voice.py small medium large)
+_TRIM_TSV_FILE_CACHE: "Dict[str, Tuple[List[float], float]]" = {}
 
 
-def preprocess_tsv_file(
+def trim_tsv_file(
     input_tsv_file: "str",
     output_tsv_file: "str",
     max_total_duration_s: "Optional[float]",
-    remove_accents: "bool" = True,
 ) -> "None":
     """Pseudorandomly remove rows from an input TSV file until
     `total_duration_s` <= `max_total_duration_s`, where `total_duration_s`
     is the sum of the durations in seconds of the remaining audio clips.
-
-    Standard Common Voice preprocessing (rename fields, remove accents, etc.)
-    is applied to each row.
 
     Parameters
     ----------
@@ -306,13 +323,10 @@ def preprocess_tsv_file(
     max_total_duration_s:
         The maximum total duration in seconds.
         Default to `total_duration_s`.
-    remove_accents:
-        True to transform accented letters to the closest
-        corresponding non-accented letters, False otherwise.
 
     Examples
     --------
-    >>> preprocess_tsv_file("data/common_voice_10_0/en/test.tsv", "data/common_voice_10_0_small/en/test.tsv", 15 * 60)
+    >>> trim_tsv_file("data/common_voice_10_0/en/test.tsv", "data/common_voice_10_0_small/en/test.tsv", 15 * 60)
 
     """
     # Setting backend to sox-io (needed to read MP3 files)
@@ -322,9 +336,7 @@ def preprocess_tsv_file(
     # Header: client_id path sentence up_votes down_votes age gender accents locale segment
     _LOGGER.log(logging.INFO, f"Reading input TSV file ({input_tsv_file})...")
     try:
-        durations_s, total_duration_s = _PREPROCESS_TSV_FILE_CACHE[
-            input_tsv_file
-        ]
+        durations_s, total_duration_s = _TRIM_TSV_FILE_CACHE[input_tsv_file]
     except KeyError:
         with open(input_tsv_file) as f:
             tsv_reader = csv.reader(f, delimiter="\t", quoting=csv.QUOTE_NONE)
@@ -344,7 +356,7 @@ def preprocess_tsv_file(
                     logging.DEBUG,
                     f"Reading {clip_file} (duration: {duration_s})...",
                 )
-            _PREPROCESS_TSV_FILE_CACHE[input_tsv_file] = (
+            _TRIM_TSV_FILE_CACHE[input_tsv_file] = (
                 durations_s,
                 total_duration_s,
             )
@@ -390,18 +402,110 @@ def preprocess_tsv_file(
     os.makedirs(os.path.dirname(output_tsv_file), exist_ok=True)
     with open(input_tsv_file) as fr, open(output_tsv_file, "w") as fw:
         tsv_reader = csv.reader(fr, delimiter="\t", quoting=csv.QUOTE_NONE)
-        header = next(tsv_reader)
-        # Rename "path" and "sentence" fields
-        header[1], header[2] = "mp3", "wrd"
         tsv_writer = csv.writer(fw, delimiter="\t")
-        # Add "ID" and "duration" fields
-        tsv_writer.writerow(["ID"] + header + ["duration"])
+        header = next(tsv_reader)
+        # Add "duration" field
+        tsv_writer.writerow(header + ["duration"])
         for i, row in enumerate(tsv_reader):
             if i in removed_row_idxes:
                 continue
+            tsv_writer.writerow(row + [durations_s[i]])
 
+    _LOGGER.log(logging.INFO, "Done!")
+
+
+def merge_tsv_files(
+    input_tsv_files: "Sequence[str]", output_csv_file: "str",
+) -> "None":
+    """Merge input TSV files into a single output CSV file.
+
+    Parameters
+    ----------
+    input_tsv_files:
+        The paths to the input TSV files.
+    output_csv_file:
+        The path to the output CSV file.
+
+    Examples
+    --------
+    >>> merge_tsv_files(
+    >>>     ["data/common_voice_10_0_small/en/test.tsv", "data/common_voice_10_0_small/fa/test.tsv"],
+    >>>     "data/common_voice_10_0_small/test.csv",
+    >>> )
+
+    """
+    _LOGGER.log(logging.INFO, f"Writing output CSV file ({output_csv_file})...")
+    os.makedirs(os.path.dirname(output_csv_file), exist_ok=True)
+    num_clips, total_duration_s = 0, 0.0
+    with open(output_csv_file, "w") as fw:
+        csv_writer = csv.writer(fw)
+        write_header = True
+        for input_tsv_file in input_tsv_files:
+            # Header: client_id path sentence up_votes down_votes age gender accents locale segment duration
+            _LOGGER.log(
+                logging.INFO, f"Reading input TSV file ({input_tsv_file})..."
+            )
+            with open(input_tsv_file) as fr:
+                tsv_reader = csv.reader(
+                    fr, delimiter="\t", quoting=csv.QUOTE_NONE
+                )
+                header = next(tsv_reader)
+                if write_header:
+                    csv_writer.writerow(header)
+                    write_header = False
+                for row in tsv_reader:
+                    num_clips += 1
+                    total_duration_s += float(row[-1])
+                    csv_writer.writerow(row)
+
+    with open(output_csv_file.replace(".csv", ".stats"), "w") as fw:
+        fw.write(f"Number of samples: {num_clips}\n")
+        fw.write(f"Total duration in seconds: {total_duration_s}")
+
+    _LOGGER.log(logging.INFO, "Done!")
+
+
+# Adapted from:
+# https://github.com/speechbrain/speechbrain/blob/v0.5.13/recipes/CommonVoice/common_voice_prepare.py
+def preprocess_csv_file(
+    input_csv_file: "str",
+    output_csv_file: "str",
+    remove_accents: "bool" = True,
+) -> "None":
+    """Apply Standard Common Voice preprocessing (e.g. rename fields, remove
+    accents, remove short sentences etc.) to each row of an input CSV file.
+
+    Parameters
+    ----------
+    input_csv_file:
+        The path to the input CSV file.
+    output_csv_file:
+        The path to the output CSV file.
+    remove_accents:
+        True to transform accented letters to the closest
+        corresponding non-accented letters, False otherwise.
+
+    Examples
+    --------
+    >>> preprocess_csv_file("data/common_voice_10_0_small/test_raw.csv", "data/common_voice_10_0_small/test.csv")
+
+    """
+    # Header: client_id path sentence up_votes down_votes age gender accents locale segment duration
+    _LOGGER.log(logging.INFO, f"Reading input CSV file ({input_csv_file})...")
+    _LOGGER.log(logging.INFO, f"Writing output CSV file ({output_csv_file})...")
+    os.makedirs(os.path.dirname(output_csv_file), exist_ok=True)
+    num_clips, total_duration_s = 0, 0.0
+    with open(input_csv_file) as fr, open(output_csv_file, "w") as fw:
+        csv_reader = csv.reader(fr)
+        csv_writer = csv.writer(fw)
+        header = next(csv_reader)
+        # Rename "path" and "sentence" fields
+        header[1], header[2] = "mp3", "wrd"
+        # Add "ID" field
+        csv_writer.writerow(["ID"] + header)
+        for i, row in enumerate(csv_reader):
             sentence = row[2]
-            locale = row[8]
+            locale = row[-3]
             sentence_id = clip_file = row[1]
             clip_file = os.path.join("$root_dir", locale, "clips", clip_file)
             # !! Language specific cleaning !!
@@ -463,54 +567,9 @@ def preprocess_tsv_file(
                 continue
 
             row[1], row[2] = clip_file, sentence
-            tsv_writer.writerow([sentence_id] + row + [durations_s[i]])
-
-    _LOGGER.log(logging.INFO, "Done!")
-
-
-def merge_tsv_files(
-    input_tsv_files: "Sequence[str]", output_csv_file: "str",
-) -> "None":
-    """Merge input TSV files into a single output CSV file.
-
-    Parameters
-    ----------
-    input_tsv_files:
-        The paths to the input TSV files.
-    output_csv_file:
-        The path to the output CSV file.
-
-    Examples
-    --------
-    >>> merge_tsv_files(
-    >>>     ["data/common_voice_10_0_small/en/test.tsv", "data/common_voice_10_0_small/fa/test.tsv"],
-    >>>     "data/common_voice_10_0_small/test.csv",
-    >>> )
-
-    """
-    _LOGGER.log(logging.INFO, f"Writing output CSV file ({output_csv_file})...")
-    os.makedirs(os.path.dirname(output_csv_file), exist_ok=True)
-    num_clips, total_duration_s = 0, 0.0
-    with open(output_csv_file, "w") as fw:
-        csv_writer = csv.writer(fw)
-        write_header = True
-        for input_tsv_file in input_tsv_files:
-            # Header: ID client_id mp3 wrd up_votes down_votes age gender accents locale segment duration
-            _LOGGER.log(
-                logging.INFO, f"Reading input TSV file ({input_tsv_file})..."
-            )
-            with open(input_tsv_file) as fr:
-                tsv_reader = csv.reader(
-                    fr, delimiter="\t", quoting=csv.QUOTE_NONE
-                )
-                header = next(tsv_reader)
-                if write_header:
-                    csv_writer.writerow(header)
-                    write_header = False
-                for row in tsv_reader:
-                    num_clips += 1
-                    total_duration_s += float(row[-1])
-                    csv_writer.writerow(row)
+            num_clips += 1
+            total_duration_s += float(row[-1])
+            csv_writer.writerow([sentence_id] + row)
 
     with open(output_csv_file.replace(".csv", ".stats"), "w") as fw:
         fw.write(f"Number of samples: {num_clips}\n")

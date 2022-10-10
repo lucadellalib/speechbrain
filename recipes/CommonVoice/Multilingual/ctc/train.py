@@ -278,7 +278,6 @@ if __name__ == "__main__":
             "dataset_version": hparams["dataset_version"],
             "dataset_dir": hparams["dataset_dir"],
             "manifest_dir": hparams["manifest_dir"],
-            "remove_accents": hparams["remove_accents"],
         },
     )
 
