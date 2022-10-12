@@ -129,8 +129,27 @@ def prepare_common_voice(
     if manifest_dir is None:
         manifest_dir = f"{dataset_dir}_{dataset_size}"
 
+    # If dataset_dir does not exists but manifest_dir does,
+    # assume trimming has been done already
     if not os.path.isdir(dataset_dir) and os.path.isdir(manifest_dir):
-        _LOGGER.log(logging.INFO, f"{manifest_dir} already created")
+        train_raw_csv_file = os.path.join(manifest_dir, "train_raw.csv")
+        dev_raw_csv_file = os.path.join(manifest_dir, "dev_raw.csv")
+        test_raw_csv_file = os.path.join(manifest_dir, "test_raw.csv")
+
+        # Redo preprocessing on the fly (it is fast and might change in the future)
+        _LOGGER.log(logging.INFO, f"Creating data manifest CSV files...")
+        for raw_csv_file in [
+            train_raw_csv_file,
+            dev_raw_csv_file,
+            test_raw_csv_file,
+        ]:
+            csv_file = raw_csv_file.replace("_raw", "")
+            # if not os.path.isfile(csv_file):
+            preprocess_csv_file(raw_csv_file, csv_file)
+            # else:
+            #    _LOGGER.log(logging.INFO, f"{csv_file} already created")
+
+        _LOGGER.log(logging.INFO, "Done!")
         return
 
     # Get dataset metadata from Hugging Face Hub
@@ -223,8 +242,10 @@ def prepare_common_voice(
                     _LOGGER.log(logging.INFO, f"Removing {file}...")
                 except Exception:
                     pass
-            # If directory is empty, remove
-            if not os.listdir(output_locale_dir):
+            # If directory exists and is empty, remove
+            if os.path.isdir(output_locale_dir) and not os.listdir(
+                output_locale_dir
+            ):
                 _LOGGER.log(logging.INFO, f"Removing {output_locale_dir}...")
                 os.rmdir(output_locale_dir)
             for _ in range(3):
@@ -284,6 +305,7 @@ def prepare_common_voice(
                     os.makedirs(os.path.dirname(destination), exist_ok=True)
                     shutil.copyfile(source, destination)
 
+    # Redo preprocessing on the fly (it is fast and might change in the future)
     _LOGGER.log(logging.INFO, f"Creating data manifest CSV files...")
     for raw_csv_file in [
         train_raw_csv_file,
@@ -291,10 +313,10 @@ def prepare_common_voice(
         test_raw_csv_file,
     ]:
         csv_file = raw_csv_file.replace("_raw", "")
-        if not os.path.isfile(csv_file):
-            preprocess_csv_file(raw_csv_file, csv_file)
-        else:
-            _LOGGER.log(logging.INFO, f"{csv_file} already created")
+        # if not os.path.isfile(csv_file):
+        preprocess_csv_file(raw_csv_file, csv_file)
+        # else:
+        #    _LOGGER.log(logging.INFO, f"{csv_file} already created")
 
     _LOGGER.log(logging.INFO, "Done!")
 
@@ -559,12 +581,12 @@ def preprocess_csv_file(
             sentence = sentence.lstrip().rstrip()
 
             # Remove too short sentences (or empty)
-            if len(sentence.split(" ")) < 3:
-                _LOGGER.log(
-                    logging.DEBUG,
-                    f"Sentence for row {i + 1} is too short, removing...",
-                )
-                continue
+            # if len(sentence.split(" ")) < 3:
+            #    _LOGGER.log(
+            #        logging.DEBUG,
+            #        f"Sentence for row {i + 1} is too short, removing...",
+            #    )
+            #     continue
 
             row[1], row[2] = clip_file, sentence
             num_clips += 1

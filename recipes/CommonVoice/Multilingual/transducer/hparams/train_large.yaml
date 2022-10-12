@@ -4,20 +4,20 @@
 # Decoder: GRU + beamsearch + RNNLM
 # Tokens: BPE with unigram
 # losses: Transducer
-# Training: Common Voice 10.0 small
+# Training: Common Voice 10.0 large
 # Authors:  Abdel HEBA, Mirco Ravanelli, Sung-Lin Yeh 2020; Luca Della Libera 2022
 # ############################################################################
 
 # Seed needs to be set at top, before objects with parameters are made
 seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_dir: !ref results/small/<seed>
+output_dir: !ref results/large/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
 
 # Data files
-dataset_size: small
+dataset_size: large
 dataset_version: "10_0"
 dataset_dir: !ref ../data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
@@ -79,7 +79,7 @@ rnn_bidirectional: True
 dnn_blocks: 2
 dnn_neurons: 1024
 dec_neurons: 1024
-output_neurons: 1219  # index(blank/eos/bos) = 0
+output_neurons: 591  # index(blank/eos/bos) = 0
 joint_dim: 1024
 blank_index: 0
 

@@ -4,20 +4,20 @@
 # Decoder: Transformer Decoder + (CTC/ATT joint) beamsearch
 # Tokens: unigram
 # losses: CTC + KLdiv (Label Smoothing loss)
-# Training: Common Voice 10.0 small
+# Training: Common Voice 10.0 medium
 # Authors:  Titouan Parcollet and Jianyuan Zhong; Luca Della Libera 2022
 # ############################################################################
 
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_dir: !ref results/small/<seed>
+output_dir: !ref results/medium/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
 
 # Data files
-dataset_size: small
+dataset_size: medium
 dataset_version: "10_0"
 dataset_dir: !ref ../data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
@@ -73,7 +73,7 @@ num_decoder_layers: 6
 d_ffn: 3072
 transformer_dropout: 0.0
 activation: !name:torch.nn.GELU
-output_neurons: 1219
+output_neurons: 591
 
 # Outputs
 blank_index: 0
