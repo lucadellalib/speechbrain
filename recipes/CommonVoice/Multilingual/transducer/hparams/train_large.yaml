@@ -11,7 +11,7 @@
 # Seed needs to be set at top, before objects with parameters are made
 seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_dir: !ref results/large/<seed>
+output_dir: !ref results/large/transducer/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
@@ -27,7 +27,7 @@ manifest_dir: !ref <dataset_dir>_<dataset_size>
 avoid_if_longer_than: 10.0
 
 # Training parameters
-number_of_epochs: 30
+number_of_epochs: 250
 batch_size: 6
 batch_size_valid: 1
 lr: 1.0
@@ -79,7 +79,7 @@ rnn_bidirectional: True
 dnn_blocks: 2
 dnn_neurons: 1024
 dec_neurons: 1024
-output_neurons: 591  # index(blank/eos/bos) = 0
+output_neurons: 103  # index(blank/eos/bos) = 0
 joint_dim: 1024
 blank_index: 0
 

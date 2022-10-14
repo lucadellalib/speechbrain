@@ -11,7 +11,7 @@
 # Seed needs to be set at top, before objects with parameters are made
 seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_dir: !ref results/medium/<seed>
+output_dir: !ref results/medium/transducer/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
@@ -27,7 +27,7 @@ manifest_dir: !ref <dataset_dir>_<dataset_size>
 avoid_if_longer_than: 10.0
 
 # Training parameters
-number_of_epochs: 30
+number_of_epochs: 250
 batch_size: 6
 batch_size_valid: 1
 lr: 1.0

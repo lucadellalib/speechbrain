@@ -567,12 +567,19 @@ def preprocess_csv_file(
 
                 sentence = re.sub("[^-A-Za-z'ÁÉÍÓÚáéíóú]+", " ", sentence)
                 sentence = " ".join(map(galc, sentence.split(" ")))
+            elif locale == "es":
+                # Fix the following error in dataset large:
+                # KeyError: 'The item En noviembre lanzaron Queen Elizabeth , coproducida por Foreign Noi$e . requires replacements which were not supplied.'
+                sentence = sentence.replace("$", "s")
 
             # Remove accents if specified
             if remove_accents:
                 sentence = unicodedata.normalize("NFD", sentence)
                 sentence = sentence.replace("'", " ")
                 sentence = sentence.replace("’", " ")
+
+            # Remove double quotes
+            sentence = sentence.replace('"', " ")
 
             # Remove multiple spaces
             sentence = re.sub(" +", " ", sentence)
@@ -581,12 +588,12 @@ def preprocess_csv_file(
             sentence = sentence.lstrip().rstrip()
 
             # Remove too short sentences (or empty)
-            # if len(sentence.split(" ")) < 3:
-            #    _LOGGER.log(
-            #        logging.DEBUG,
-            #        f"Sentence for row {i + 1} is too short, removing...",
-            #    )
-            #     continue
+            if len(sentence.split(" ")) < 3:
+                _LOGGER.log(
+                    logging.DEBUG,
+                    f"Sentence for row {i + 1} is too short, removing...",
+                )
+                continue
 
             row[1], row[2] = clip_file, sentence
             num_clips += 1
