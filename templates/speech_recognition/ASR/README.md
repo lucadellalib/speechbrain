@@ -5,13 +5,20 @@ a  seq2seq (+ CTC) speech recognizer model from scratch, based on a few hours of
 There are three files here:
 
 * `train.py`: the main code file, outlines the entire training process.
-* `train.yaml`: the hyperparameters file, sets all parameters of execution.
+* `hparams.py`: the hyperparameters file in Python format, sets all parameters of execution.
+* `hparams.yaml`: the hyperparameters file in HyperPyYAML format, sets all parameters of execution.
 * `mini_librispeech_prepare.py`: If necessary, downloads and prepares data manifests.
 
 To train the speech recognition model, just execute the following on the command-line:
 
 ```bash
-python train.py train.yaml
+python train.py hparams.py
+```
+
+or alternatively:
+
+```bash
+python train.py hparams.yaml
 ```
 
 We assume you already trained the tokenizer (see ../Tokenizer) and the language model (../LM).

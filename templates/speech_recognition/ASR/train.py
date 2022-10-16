@@ -5,7 +5,9 @@ between them. Decoding is performed with beam search coupled with a neural
 language model.
 
 To run this recipe, do the following:
-> python train.py train.yaml
+> python train.py hparams.py
+or alternatively:
+> python train.py hparams.yaml
 
 With the default hyperparameters, the system employs an LSTM encoder.
 The decoder is based on a standard  GRU. Beam search coupled with an RNN language
@@ -41,6 +43,7 @@ Authors
  * Abdel Heba 2020
  * Peter Plantinga 2020
  * Samuele Cornell 2020
+ * Luca Della Libera 2022
 """
 
 import sys
@@ -401,14 +404,20 @@ if __name__ == "__main__":
     sb.utils.distributed.ddp_init_group(run_opts)
 
     # Load hyperparameters file with command-line overrides
-    with open(hparams_file) as fin:
-        hparams = load_hyperpyyaml(fin, overrides)
+    if hparams_file.endswith(".py"):
+        # TODO: add support for overrides
+        # Not straightforward but could be implemented using `ast`
+        # standard library or more advanced Python refactoring tools
+        hparams = vars(sb.utils.superpowers.import_from_path(hparams_file))
+    else:
+        with open(hparams_file) as fin:
+            hparams = load_hyperpyyaml(fin, overrides)
 
     # Create experiment directory
     sb.create_experiment_directory(
         experiment_directory=hparams["output_folder"],
-        hyperparams_to_save=hparams_file,
-        overrides=overrides,
+        #hyperparams_to_save=hparams_file,
+        #overrides=overrides,
     )
 
     # Data preparation, to be run on only one process.
