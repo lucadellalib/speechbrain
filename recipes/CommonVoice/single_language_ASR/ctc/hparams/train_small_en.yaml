@@ -13,7 +13,7 @@ seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 dataset_size: small
-language: rw # use 'it' for Italian, 'rw' for Kinyarwanda, 'en' for english
+language: en # use 'it' for Italian, 'rw' for Kinyarwanda, 'en' for english
 dataset_version: "10_0"
 output_folder: !ref ./recipes/CommonVoice/single_language_ASR/results/<dataset_size>/ctc_<language>/<seed>
 wer_file: !ref <output_folder>/wer.txt
