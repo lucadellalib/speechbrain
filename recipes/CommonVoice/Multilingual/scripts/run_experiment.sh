@@ -7,9 +7,10 @@ SIZE=$1
 MODEL=$2
 CONFIG=$3
 
+cd /workspace
 git clone https://github.com/lucadellalib/speechbrain.git
 cd speechbrain
-git checkout multilingual-env
+git checkout common-voice-multilingual
 cd recipes/CommonVoice/Multilingual
 conda env create -f environment.yaml
 source activate multilingual-env
@@ -18,5 +19,6 @@ cp /workspace/common_voice_10_0_${SIZE}/common_voice_10_0_${SIZE}.tar.gz .
 tar -xf common_voice_10_0_${SIZE}.tar.gz
 cd ..
 cd ${MODEL}
-ln -s /workspace/common_voice_10_0_medium_output results
-nohup python train.py hparams/${CONFIG}.yaml &
+mkdir -p /workspace/common_voice_10_0_${SIZE}_output/results
+ln -s /workspace/common_voice_10_0_${SIZE}_output/results results
+nohup python train.py ${CONFIG} &
