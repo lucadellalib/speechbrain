@@ -11,12 +11,14 @@
 # Seed needs to be set at top, before objects with parameters are made
 seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
+
+# Data files and directories
 output_dir: !ref results/small/transducer/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
 
-# Data files
+# Data preparation
 dataset_size: small
 dataset_version: "10_0"
 dataset_dir: !ref ../data/common_voice_<dataset_version>
@@ -26,33 +28,33 @@ manifest_dir: !ref <dataset_dir>_<dataset_size>
 # longer sentences certainly correspond to "open microphones"
 avoid_if_longer_than: 10.0
 
+ckpt_interval_minutes: 15 # save checkpoint every N min
+
 # Training parameters
 number_of_epochs: 250
-batch_size: 6
-batch_size_valid: 1
 lr: 1.0
-sorting: ascending
-ckpt_interval_minutes: 15 # save checkpoint every N min
 # MTL for encoder with CTC (uncomment enc_lin layer)
 #number_of_ctc_epochs: 2
 #ctc_weight: 0.33
 # MTL for decoder with CE (uncomment dec_lin layer)
 #number_of_ce_epochs: 2
 #ce_weight: 0.33
+sorting: ascending
+
+# With data_parallel batch_size is split into N jobs
+# With DDP batch_size is multiplied by N jobs
+# Must be 8 per GPU to fit 32GB of VRAM
+batch_size: 6
+batch_size_valid: 1
+
+# BPE parameters
+token_type: char  # ["unigram", "bpe", "char"]
+character_coverage: 1.0
 
 # Feature parameters
 sample_rate: 16000
 n_fft: 400
 n_mels: 80
-
-opt_class: !name:torch.optim.Adadelta
-   lr: !ref <lr>
-   rho: 0.95
-   eps: 1.e-8
-
-# BPE parameters
-token_type: char  # ["unigram", "bpe", "char"]
-character_coverage: 1.0
 
 # Dataloader options
 train_dataloader_opts:
@@ -79,42 +81,46 @@ rnn_bidirectional: True
 dnn_blocks: 2
 dnn_neurons: 1024
 dec_neurons: 1024
-output_neurons: 1219  # index(blank/eos/bos) = 0
 joint_dim: 1024
-blank_index: 0
+output_neurons: 1219  # index(blank/eos/bos) = 0
 
 # Decoding parameters
+# Be sure that the bos and eos index match with the BPEs ones
+blank_index: 0
+bos_index: 1
+eos_index: 2
 beam_size: 4
 nbest: 1
-# by default {state,expand}_beam = 2.3 as mention in paper
+# By default {state,expand}_beam = 2.3 as mention in paper
 # https://arxiv.org/abs/1904.02619
 state_beam: 2.3
 expand_beam: 2.3
+#label_smoothing: 0.0 TODO: check
 
-epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
-   limit: !ref <number_of_epochs>
-
+# Normalization
 normalize: !new:speechbrain.processing.features.InputNormalization
-   norm_type: global
-
-compute_features: !new:speechbrain.lobes.features.Fbank
-   sample_rate: !ref <sample_rate>
-   n_fft: !ref <n_fft>
-   n_mels: !ref <n_mels>
+    norm_type: global
 
 # Frequency domain SpecAugment
 augmentation: !new:speechbrain.lobes.augment.SpecAugment
-   time_warp: True
-   time_warp_window: 5
-   time_warp_mode: bicubic
-   freq_mask: True
-   n_freq_mask: 2
-   time_mask: True
-   n_time_mask: 2
-   replace_with_zero: False
-   freq_mask_width: 30
-   time_mask_width: 40
+    time_warp: True
+    time_warp_window: 5
+    time_warp_mode: bicubic
+    freq_mask: True
+    n_freq_mask: 2
+    time_mask: True
+    n_time_mask: 2
+    replace_with_zero: False
+    freq_mask_width: 30
+    time_mask_width: 40
 
+# Features
+compute_features: !new:speechbrain.lobes.features.Fbank
+    sample_rate: !ref <sample_rate>
+    n_fft: !ref <n_fft>
+    n_mels: !ref <n_mels>
+
+# Models
 enc: !new:speechbrain.lobes.models.CRDNN.CRDNN
    input_shape: [null, null, !ref <n_mels>]
    activation: !ref <activation>
@@ -198,14 +204,6 @@ modules:
 model: !new:torch.nn.ModuleList
    - [!ref <enc>, !ref <emb>, !ref <dec>, !ref <transducer_lin>]
 
-# greedy_searcher: !new:speechbrain.decoders.transducer.TransducerBeamSearcher
-#   decode_network_lst: [!ref <emb>, !ref <dec>]
-#   tjoint: !ref <Tjoint>
-#   classifier_network: [!ref <transducer_lin>]
-#   blank_id: !ref <blank_index>
-#   beam_size: 1
-#   nbest: 1
-
 beam_searcher: !new:speechbrain.decoders.transducer.TransducerBeamSearcher
    decode_network_lst: [!ref <emb>, !ref <dec>]
    tjoint: !ref <Tjoint>
@@ -216,24 +214,35 @@ beam_searcher: !new:speechbrain.decoders.transducer.TransducerBeamSearcher
    state_beam: !ref <state_beam>
    expand_beam: !ref <expand_beam>
 
+# Optimizers
+opt_class: !name:torch.optim.Adadelta
+   lr: !ref <lr>
+   rho: 0.95
+   eps: 1.e-8
+
 lr_annealing: !new:speechbrain.nnet.schedulers.NewBobScheduler
    initial_value: !ref <lr>
    improvement_threshold: 0.0025
    annealing_factor: 0.8
    patient: 0
 
-checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
-   checkpoints_dir: !ref <save_dir>
-   recoverables:
-      model: !ref <model>
-      scheduler: !ref <lr_annealing>
-      normalizer: !ref <normalize>
-      counter: !ref <epoch_counter>
-
-train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
-   save_file: !ref <train_log>
-
+# Metrics
 error_rate_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
 
 cer_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
-   split_tokens: True
+    split_tokens: True
+
+# Misc
+epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
+    limit: !ref <number_of_epochs>
+
+checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
+    checkpoints_dir: !ref <save_dir>
+    recoverables:
+        model: !ref <model>
+        scheduler: !ref <lr_annealing>
+        normalizer: !ref <normalize>
+        counter: !ref <epoch_counter>
+
+train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
+    save_file: !ref <train_log>

@@ -47,12 +47,15 @@ class ASR(sb.core.Brain):
         tokens_bos, _ = batch.tokens_bos
         wavs, wav_lens = wavs.to(self.device), wav_lens.to(self.device)
 
-        if stage == sb.Stage.TRAIN:
-            if hasattr(self.hparams, "augmentation"):
-                wavs = self.hparams.augmentation(wavs, wav_lens)
-
         # Forward pass
         feats = self.hparams.compute_features(wavs)
+        feats = self.modules.normalize(feats, wav_lens)
+
+        # Add augmentation if specified
+        if stage == sb.Stage.TRAIN:
+            if hasattr(self.hparams, "augmentation"):
+                feats = self.hparams.augmentation(feats)
+
         x = self.modules.enc(feats)
         logits = self.modules.ctc_lin(x)
         p_ctc = self.hparams.log_softmax(logits)

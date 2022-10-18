@@ -11,12 +11,14 @@
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
+
+# Data files and directories
 output_dir: !ref results/large/transformer/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
 
-# Data files
+# Data preparation
 dataset_size: large
 dataset_version: "10_0"
 dataset_dir: !ref ../data/common_voice_<dataset_version>
@@ -30,7 +32,6 @@ ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
 number_of_epochs: 250
-batch_size: 32 # This works with a 32GB GPU ! (bs * nb_gpu * accum) > 128 !
 ctc_weight: 0.3
 gradient_accumulation: 4
 loss_reduction: "batchmean"
@@ -40,6 +41,11 @@ sorting: random
 stage_one_epochs: 40
 lr_adam: 1.0
 lr_sgd: 0.00003
+
+# With data_parallel batch_size is split into N jobs
+# With DDP batch_size is multiplied by N jobs
+# Must be 8 per GPU to fit 32GB of VRAM
+batch_size: 32 # This works with a 32GB GPU ! (bs * nb_gpu * accum) > 128 !
 
 # BPE parameters
 token_type: char  # ["unigram", "bpe", "char"]
@@ -64,7 +70,7 @@ test_dataloader_opts:
     batch_size: !ref <batch_size>
     num_workers: 6
 
-####################### Model parameters ###########################
+# Model parameters
 # Transformer
 d_model: 768
 nhead: 8
@@ -73,25 +79,45 @@ num_decoder_layers: 6
 d_ffn: 3072
 transformer_dropout: 0.0
 activation: !name:torch.nn.GELU
-output_neurons: 103
+output_neurons: 1219
 
-# Outputs
+# Decoding parameters
 blank_index: 0
-label_smoothing: 0.1
 pad_index: 0
 bos_index: 1
 eos_index: 2
-
-# Decoding parameters
 min_decode_ratio: 0.0
 max_decode_ratio: 1.0
 valid_search_interval: 5
 valid_beam_size: 10
 # test_beam_size: 80
 ctc_weight_decode: 0.3
+label_smoothing: 0.1 # TODO: check
 
-############################## models ################################
+# Normalization
+normalize: !new:speechbrain.processing.features.InputNormalization
+    norm_type: global
 
+# Frequency domain SpecAugment
+augmentation: !new:speechbrain.lobes.augment.SpecAugment
+    time_warp: True
+    time_warp_window: 5
+    time_warp_mode: bicubic
+    freq_mask: True
+    n_freq_mask: 2
+    time_mask: True
+    n_time_mask: 2
+    replace_with_zero: False
+    freq_mask_width: 30
+    time_mask_width: 40
+
+# Features
+compute_features: !new:speechbrain.lobes.features.Fbank
+    sample_rate: !ref <sample_rate>
+    n_fft: !ref <n_fft>
+    n_mels: !ref <n_mels>
+
+# Models
 CNN: !new:speechbrain.lobes.models.convolution.ConvolutionFrontEnd
     input_shape: (8, 10, 80)
     num_blocks: 3
@@ -130,16 +156,16 @@ modules:
 model: !new:torch.nn.ModuleList
     - [!ref <CNN>, !ref <Transformer>, !ref <seq_lin>, !ref <ctc_lin>]
 
-# We define two optimizers as we have two stages (training + finetuning)
-Adam: !name:torch.optim.Adam
-    lr: 0
-    betas: (0.9, 0.98)
-    eps: 0.000000001
+log_softmax: !new:torch.nn.LogSoftmax
+    dim: -1
 
-SGD: !name:torch.optim.SGD
-    lr: !ref <lr_sgd>
-    momentum: 0.99
-    nesterov: True
+ctc_cost: !name:speechbrain.nnet.losses.ctc_loss
+    blank_index: !ref <blank_index>
+    reduction: !ref <loss_reduction>
+
+seq_cost: !name:speechbrain.nnet.losses.kldiv_loss
+    label_smoothing: !ref <label_smoothing>
+    reduction: !ref <loss_reduction>
 
 beam_searcher: !new:speechbrain.decoders.S2STransformerBeamSearch
     modules: [!ref <Transformer>, !ref <seq_lin>, !ref <ctc_lin>]
@@ -153,21 +179,32 @@ beam_searcher: !new:speechbrain.decoders.S2STransformerBeamSearch
     using_eos_threshold: False
     length_normalization: True
 
-log_softmax: !new:torch.nn.LogSoftmax
-    dim: -1
+# Optimizers
+# We define two optimizers as we have two stages (training + finetuning)
+Adam: !name:torch.optim.Adam
+    lr: 0
+    betas: (0.9, 0.98)
+    eps: 0.000000001
 
-ctc_cost: !name:speechbrain.nnet.losses.ctc_loss
-    blank_index: !ref <blank_index>
-    reduction: !ref <loss_reduction>
-
-seq_cost: !name:speechbrain.nnet.losses.kldiv_loss
-    label_smoothing: !ref <label_smoothing>
-    reduction: !ref <loss_reduction>
+SGD: !name:torch.optim.SGD
+    lr: !ref <lr_sgd>
+    momentum: 0.99
+    nesterov: True
 
 noam_annealing: !new:speechbrain.nnet.schedulers.NoamScheduler
     lr_initial: !ref <lr_adam>
     n_warmup_steps: 25000
     model_size: !ref <d_model>
+
+# Metrics
+error_rate_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
+
+cer_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
+    split_tokens: True
+
+# Misc
+epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
+    limit: !ref <number_of_epochs>
 
 checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
     checkpoints_dir: !ref <save_dir>
@@ -177,34 +214,5 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
         normalizer: !ref <normalize>
         counter: !ref <epoch_counter>
 
-epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
-    limit: !ref <number_of_epochs>
-
-normalize: !new:speechbrain.processing.features.InputNormalization
-    norm_type: global
-    update_until_epoch: 3
-
-augmentation: !new:speechbrain.lobes.augment.SpecAugment
-    time_warp: True
-    time_warp_window: 5
-    time_warp_mode: bicubic
-    freq_mask: True
-    n_freq_mask: 2
-    time_mask: True
-    n_time_mask: 2
-    replace_with_zero: False
-    freq_mask_width: 30
-    time_mask_width: 40
-
-compute_features: !new:speechbrain.lobes.features.Fbank
-    sample_rate: !ref <sample_rate>
-    n_fft: !ref <n_fft>
-    n_mels: !ref <n_mels>
-
 train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
     save_file: !ref <train_log>
-
-error_rate_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
-acc_computer: !name:speechbrain.utils.Accuracy.AccuracyStats
-cer_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
-    split_tokens: True

@@ -124,8 +124,6 @@ class ASR(sb.core.Brain):
                 self.wer_metric.append(ids, predicted_words, target_words)
                 self.cer_metric.append(ids, predicted_words, target_words)
 
-            # compute the accuracy of the one-step-forward prediction
-            self.acc_metric.append(p_seq, tokens_eos, tokens_eos_lens)
         return loss
 
     def fit_batch(self, batch):
@@ -163,7 +161,6 @@ class ASR(sb.core.Brain):
     def on_stage_start(self, stage, epoch):
         """Gets called at the beginning of each epoch"""
         if stage != sb.Stage.TRAIN:
-            self.acc_metric = self.hparams.acc_computer()
             self.cer_metric = self.hparams.cer_computer()
             self.wer_metric = self.hparams.error_rate_computer()
 
@@ -174,7 +171,6 @@ class ASR(sb.core.Brain):
         if stage == sb.Stage.TRAIN:
             self.train_stats = stage_stats
         else:
-            stage_stats["ACC"] = self.acc_metric.summarize()
             current_epoch = self.hparams.epoch_counter.current
             valid_search_interval = self.hparams.valid_search_interval
             if (
@@ -208,10 +204,6 @@ class ASR(sb.core.Brain):
                 stats_meta=epoch_stats,
                 train_stats=self.train_stats,
                 valid_stats=stage_stats,
-            )
-            self.checkpointer.save_and_keep_only(
-                meta={"ACC": stage_stats["ACC"], "epoch": epoch},
-                max_keys=["ACC"],
             )
 
         elif stage == sb.Stage.TEST:
