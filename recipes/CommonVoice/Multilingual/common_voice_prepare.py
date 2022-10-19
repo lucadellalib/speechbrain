@@ -138,9 +138,21 @@ def prepare_common_voice(
 
     # Get dataset metadata from Hugging Face Hub
     if locales is None:
-        locales = datasets.get_dataset_config_names(
-            dataset_name, use_auth_token=True
-        )
+        if skip_download and dataset_version == "10_0":
+            # If data already exist, use hardcoded locales to avoid creating a Hugging Face account
+            locales = [
+                "en", "fa", "fr", "es", "sl", "kab", "cy", "ca", "de", "tt", "ta", "ru", "nl", "it", "eu", "tr", "ar",
+                "zh-TW", "br", "pt", "eo", "zh-CN", "id", "ia", "lv", "ja", "rw", "sv-SE", "cnh", "et", "ky", "ro", "hsb",
+                "el", "cs", "pl", "rm-sursilv", "rm-vallader", "mn", "zh-HK", "ab", "cv", "uk", "mt", "as", "ka", "fy-NL",
+                "dv", "pa-IN", "vi", "or", "ga-IE", "fi", "hu", "th", "lt", "lg", "hi", "bas", "sk", "kmr", "bg", "kk",
+                "ba", "gl", "ug", "hy-AM", "be", "ur", "gn", "sr", "uz", "mr", "da", "myv", "nn-NO", "ha", "ckb", "ml",
+                "mdf", "sw", "sat", "tig", "ig", "nan-tw", "mhr", "bn", "tok", "yue", "sah", "mk", "sc", "vot", "az",
+                "ast", "ne-NP",
+            ]
+        else:
+            locales = datasets.get_dataset_config_names(
+                dataset_name, use_auth_token=True
+            )
 
     output_tsv_files = []
     for i, locale in enumerate(locales):

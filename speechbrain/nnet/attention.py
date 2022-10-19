@@ -775,13 +775,25 @@ class MultiheadAttention(nn.Module):
         if attn_mask is not None and key_padding_mask is not None:
             if return_attn_weights:
                 attn_output, attn_output_weights = output
-                mask = attn_output.isnan().all(dim=-1)
-                attn_output[mask] = 0#-float("inf")
-                mask = attn_output_weights.isnan().all(dim=-1)
-                attn_output_weights[mask] = 0#-float("inf")
+                if attn_output.isnan().any() or attn_output_weights.isnan().any():
+                    output = self.att(
+                        query,
+                        key,
+                        value,
+                        attn_mask=attn_mask,
+                        key_padding_mask=None,
+                        need_weights=return_attn_weights,
+                    )
             else:
-                mask = output.isnan().all(dim=-1)
-                output[mask] = 0#-float("inf")
+                if output.isnan().any():
+                    output = self.att(
+                        query,
+                        key,
+                        value,
+                        attn_mask=attn_mask,
+                        key_padding_mask=None,
+                        need_weights=return_attn_weights,
+                    )
 
         if return_attn_weights:
             output, attention_weights = output

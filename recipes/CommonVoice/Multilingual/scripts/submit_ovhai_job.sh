@@ -15,4 +15,4 @@ ovhai job run ovhcom/ai-training-pytorch:latest \
     --volume common_voice_10_0_${SIZE}@BHS/:/workspace/common_voice_10_0_${SIZE}/:RO \
     --volume common_voice_10_0_scripts@BHS/:/workspace/common_voice_10_0_scripts/:RW \
     --volume common_voice_10_0_${SIZE}_output@BHS/:/workspace/common_voice_10_0_${SIZE}_output/:RW \
-    -- bash -c "chmod u+x /workspace/common_voice_10_0_scripts/run_experiment.sh & /workspace/common_voice_10_0_scripts/run_experiment.sh ${SIZE} ${MODEL} ${CONFIG}"
+    -- bash -c "chmod u+x /workspace/common_voice_10_0_scripts/run_experiment.sh && /workspace/common_voice_10_0_scripts/run_experiment.sh ${SIZE} ${MODEL} ${CONFIG}"
