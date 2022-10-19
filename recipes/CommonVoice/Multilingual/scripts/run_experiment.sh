@@ -22,4 +22,4 @@ cd ..
 cd ${MODEL}
 mkdir -p /workspace/common_voice_10_0_${SIZE}_output/results
 ln -s /workspace/common_voice_10_0_${SIZE}_output/results results
-nohup python train.py ${CONFIG} &
+python train.py ${CONFIG}
