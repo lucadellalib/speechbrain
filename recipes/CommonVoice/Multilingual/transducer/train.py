@@ -316,9 +316,9 @@ def dataio_prepare(hparams, tokenizer):
         yield wrd
         tokens_list = tokenizer.sp.encode_as_ids(wrd)
         yield tokens_list
-        tokens_bos = torch.LongTensor([hparams["blank_index"]] + (tokens_list))
+        tokens_bos = torch.LongTensor([hparams["bos_index"]] + (tokens_list))
         yield tokens_bos
-        tokens_eos = torch.LongTensor(tokens_list + [hparams["blank_index"]])
+        tokens_eos = torch.LongTensor(tokens_list + [hparams["eos_index"]])
         yield tokens_eos
         tokens = torch.LongTensor(tokens_list)
         yield tokens
