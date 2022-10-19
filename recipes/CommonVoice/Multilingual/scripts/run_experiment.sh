@@ -15,6 +15,7 @@ cd recipes/CommonVoice/Multilingual
 conda env create -f environment.yaml
 source activate multilingual-env
 mkdir data
+cd data
 cp /workspace/common_voice_10_0_${SIZE}/common_voice_10_0_${SIZE}.tar.gz .
 tar -xf common_voice_10_0_${SIZE}.tar.gz
 cd ..

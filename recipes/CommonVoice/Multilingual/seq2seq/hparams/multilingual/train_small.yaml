@@ -11,7 +11,7 @@ seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 # Data files and directories
-output_dir: !ref results/small/seq2seq/<seed>
+output_dir: !ref results/multilingual/small/seq2seq/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt

@@ -1,25 +1,14 @@
 #!/usr/bin/env python3
 
-"""Recipe for training a Transformer ASR system with Common Voice.
-The system employs an encoder, a decoder, and an attention mechanism
-between them. Decoding is performed with (CTC/Att joint) beamsearch.
+"""Recipe for training a transformer ASR system with Common Voice.
 
 To run this recipe, do the following:
-> python train.py hparams/train_<variant>.yaml
-
-With the default hyperparameters, the system employs a convolutional frontend (ContextNet) and a transformer.
-The decoder is based on a Transformer decoder.
-
-The neural network is trained on both CTC and negative-log likelihood
-targets and sub-word units estimated with Byte Pairwise Encoding (BPE)
-are used as basic recognition tokens.
+> python train.py hparams/<path-to-config>.yaml
 
 The experiment file is flexible enough to support a large variety of
 different systems. By properly changing the parameter files, you can try
 different encoders, decoders, tokens (e.g, characters instead of BPE),
-training split (e.g, train-clean 100 rather than the full one), and many
-other possible variations.
-
+training split, and many other possible variations.
 
 Authors
  * Titouan Parcollet 2021

@@ -769,7 +769,7 @@ class MultiheadAttention(nn.Module):
             need_weights=return_attn_weights,
         )
         # TODO: check workaround is correct
-        # Fix NaN due to entire sequence being mask from
+        # Fix NaN due to entire sequence being masked from
         # combination of attn_mask and key_padding_mask
         # https://github.com/pytorch/pytorch/issues/41508
         if attn_mask is not None and key_padding_mask is not None:

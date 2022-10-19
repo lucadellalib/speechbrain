@@ -1,31 +1,31 @@
 # ############################################################################
-# Model: E2E ASR with attention-based ASR
-# Encoder: CRDNN model
-# Decoder: GRU + beamsearch + RNNLM
-# Tokens: BPE with unigram
-# losses: Transducer
-# Training: Common Voice 10.0 medium
-# Authors:  Abdel HEBA, Mirco Ravanelli, Sung-Lin Yeh 2020; Luca Della Libera 2022
+# Model: CRDNN + CTC
+# Encoder: CRDNN
+# Decoder: CTC + greedy earch
+# Tokens: unigram
+# losses: CTC
+# Training: Common Voice 10.0 large
+# Authors: Titouan Parcollet 2021; Luca Della Libera 2022
 # ############################################################################
 
-# Seed needs to be set at top, before objects with parameters are made
+# Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 # Data files and directories
-output_dir: !ref results/medium/transducer/<seed>
+output_dir: !ref results/multilingual/large/ctc/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
 
 # Data preparation
-dataset_size: medium
+dataset_size: large
 dataset_version: "10_0"
 dataset_dir: !ref ../data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
 
 # We remove utterances longer than 10s in the train/dev/test sets as
-# longer sentences certainly correspond to "open microphones"
+# longer sentences certainly correspond to "open microphones".
 avoid_if_longer_than: 10.0
 
 ckpt_interval_minutes: 15 # save checkpoint every N min
@@ -33,19 +33,14 @@ ckpt_interval_minutes: 15 # save checkpoint every N min
 # Training parameters
 number_of_epochs: 250
 lr: 1.0
-# MTL for encoder with CTC (uncomment enc_lin layer)
-#number_of_ctc_epochs: 2
-#ctc_weight: 0.33
-# MTL for decoder with CE (uncomment dec_lin layer)
-#number_of_ce_epochs: 2
-#ce_weight: 0.33
 sorting: ascending
+auto_mix_prec: False
 
 # With data_parallel batch_size is split into N jobs
 # With DDP batch_size is multiplied by N jobs
 # Must be 8 per GPU to fit 32GB of VRAM
-batch_size: 6
-batch_size_valid: 1
+batch_size: 12
+test_batch_size: 4
 
 # BPE parameters
 token_type: char  # ["unigram", "bpe", "char"]
@@ -58,13 +53,17 @@ n_mels: 80
 
 # Dataloader options
 train_dataloader_opts:
-   batch_size: !ref <batch_size>
+    batch_size: !ref <batch_size>
+    shuffle: True
+    num_workers: 6
 
 valid_dataloader_opts:
-   batch_size: !ref <batch_size_valid>
+    batch_size: !ref <batch_size>
+    num_workers: 6
 
 test_dataloader_opts:
-   batch_size: !ref <batch_size_valid>
+    batch_size: !ref <batch_size>
+    num_workers: 6
 
 # Model parameters
 activation: !name:torch.nn.LeakyReLU
@@ -89,12 +88,6 @@ output_neurons: 1219  # index(blank/eos/bos) = 0
 blank_index: 0
 bos_index: 1
 eos_index: 2
-beam_size: 4
-nbest: 1
-# By default {state,expand}_beam = 2.3 as mention in paper
-# https://arxiv.org/abs/1904.02619
-state_beam: 2.3
-expand_beam: 2.3
 #label_smoothing: 0.0 TODO: check
 
 # Normalization
@@ -140,91 +133,35 @@ enc: !new:speechbrain.lobes.models.CRDNN.CRDNN
    dnn_blocks: !ref <dnn_blocks>
    dnn_neurons: !ref <dnn_neurons>
 
-# For MTL CTC over the encoder
-enc_lin: !new:speechbrain.nnet.linear.Linear
-   input_size: !ref <dnn_neurons>
-   n_neurons: !ref <joint_dim>
-
-# Uncomment for MTL with CTC
-# ctc_cost: !name:speechbrain.nnet.ctc_loss
-#    blank_index: !ref <blank_index>
-
-emb: !new:speechbrain.nnet.embedding.Embedding
-   num_embeddings: !ref <output_neurons>
-   consider_as_one_hot: True
-   blank_id: !ref <blank_index>
-
-dec: !new:speechbrain.nnet.RNN.GRU
-   input_shape: [null, null, !ref <output_neurons> - 1]
-   hidden_size: !ref <dec_neurons>
-   num_layers: 1
-   re_init: True
-
-# For MTL with LM over the decoder
-dec_lin: !new:speechbrain.nnet.linear.Linear
-   input_size: !ref <dec_neurons>
-   n_neurons: !ref <joint_dim>
-   bias: False
-
-# For MLT with CTC
-#ce_cost: !name:speechbrain.nnet.losses.nll_loss
-#   label_smoothing: 0.1
-
-Tjoint: !new:speechbrain.nnet.transducer.transducer_joint.Transducer_joint
-   joint: sum # joint [sum | concat]
-   nonlinearity: !ref <activation>
-
-transducer_lin: !new:speechbrain.nnet.linear.Linear
-   input_size: !ref <joint_dim>
-   n_neurons: !ref <output_neurons>
-   bias: False
+ctc_lin: !new:speechbrain.nnet.linear.Linear
+    input_size: !ref <dnn_neurons>
+    n_neurons: !ref <output_neurons>
 
 log_softmax: !new:speechbrain.nnet.activations.Softmax
-   apply_log: True
+    apply_log: True
 
-transducer_cost: !name:speechbrain.nnet.losses.transducer_loss
-   use_torchaudio: True
-   blank_index: !ref <blank_index>
+ctc_cost: !name:speechbrain.nnet.losses.ctc_loss
+    blank_index: !ref <blank_index>
 
-# for MTL
-# update model if any HEAD module is added
 modules:
-   enc: !ref <enc>
-   enc_lin: !ref <enc_lin>
-   emb: !ref <emb>
-   dec: !ref <dec>
-   dec_lin: !ref <dec_lin>
-   Tjoint: !ref <Tjoint>
-   transducer_lin: !ref <transducer_lin>
-   normalize: !ref <normalize>
-   augmentation: !ref <augmentation>
+    enc: !ref <enc>
+    ctc_lin: !ref <ctc_lin>
+    normalize: !ref <normalize>
 
-# for MTL
-# update model if any HEAD module is added
 model: !new:torch.nn.ModuleList
-   - [!ref <enc>, !ref <emb>, !ref <dec>, !ref <transducer_lin>]
-
-beam_searcher: !new:speechbrain.decoders.transducer.TransducerBeamSearcher
-   decode_network_lst: [!ref <emb>, !ref <dec>]
-   tjoint: !ref <Tjoint>
-   classifier_network: [!ref <transducer_lin>]
-   blank_id: !ref <blank_index>
-   beam_size: !ref <beam_size>
-   nbest: !ref <nbest>
-   state_beam: !ref <state_beam>
-   expand_beam: !ref <expand_beam>
+    - [!ref <enc>, !ref <ctc_lin>]
 
 # Optimizers
 opt_class: !name:torch.optim.Adadelta
-   lr: !ref <lr>
-   rho: 0.95
-   eps: 1.e-8
+    lr: !ref <lr>
+    rho: 0.95
+    eps: 1.e-8
 
 lr_annealing: !new:speechbrain.nnet.schedulers.NewBobScheduler
-   initial_value: !ref <lr>
-   improvement_threshold: 0.0025
-   annealing_factor: 0.8
-   patient: 0
+    initial_value: !ref <lr>
+    improvement_threshold: 0.0025
+    annealing_factor: 0.8
+    patient: 0
 
 # Metrics
 error_rate_computer: !name:speechbrain.utils.metric_stats.ErrorRateStats
