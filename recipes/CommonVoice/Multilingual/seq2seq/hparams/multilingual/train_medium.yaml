@@ -21,6 +21,7 @@ dataset_size: medium
 dataset_version: "10_0"
 dataset_dir: !ref ../data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
+locales: null # All languages
 
 # We remove utterances longer than 10s in the train/dev/test sets as
 # longer sentences certainly correspond to "open microphones".
