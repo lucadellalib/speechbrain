@@ -39,7 +39,7 @@ avoid_if_longer_than: 10.0
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
-number_of_epochs: 250
+number_of_epochs: 100
 lr: 1.0
 sorting: ascending
 auto_mix_prec: False
@@ -94,8 +94,8 @@ joint_dim: 1024
 # Decoding parameters
 # Be sure that the bos and eos index match with the BPEs ones
 blank_index: 0
-bos_index: 1
-eos_index: 2
+bos_index: 0
+eos_index: 0
 
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
