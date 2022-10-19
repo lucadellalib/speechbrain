@@ -636,6 +636,7 @@ class RelPosMHAXL(nn.Module):
         out = self.out_proj(x)
         if return_attn_weights:
             return out, attn_score
+
         return out
 
 
@@ -767,6 +768,32 @@ class MultiheadAttention(nn.Module):
             key_padding_mask=key_padding_mask,
             need_weights=return_attn_weights,
         )
+        # TODO: check workaround is correct
+        # Fix NaN due to entire sequence being masked from
+        # combination of attn_mask and key_padding_mask
+        # https://github.com/pytorch/pytorch/issues/41508
+        if attn_mask is not None and key_padding_mask is not None:
+            if return_attn_weights:
+                attn_output, attn_output_weights = output
+                if attn_output.isnan().any() or attn_output_weights.isnan().any():
+                    output = self.att(
+                        query,
+                        key,
+                        value,
+                        attn_mask=attn_mask,
+                        key_padding_mask=None,
+                        need_weights=return_attn_weights,
+                    )
+            else:
+                if output.isnan().any():
+                    output = self.att(
+                        query,
+                        key,
+                        value,
+                        attn_mask=attn_mask,
+                        key_padding_mask=None,
+                        need_weights=return_attn_weights,
+                    )
 
         if return_attn_weights:
             output, attention_weights = output

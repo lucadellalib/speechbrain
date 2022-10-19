@@ -46,7 +46,7 @@ Navigate to `<path-to-repository>/recipes/CommonVoice/Multilingual/ctc`, open a 
 
 ```
 conda activate multilingual-env
-python train.py hparams/train_small.yaml
+python train.py hparams/multilingual/train_small.yaml
 ```
 
 **NOTE**: you can download Common Voice 10.0 beforehand, build the `small`, `medium` and `large` variants

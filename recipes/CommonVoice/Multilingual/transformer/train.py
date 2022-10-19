@@ -1,25 +1,14 @@
 #!/usr/bin/env python3
 
-"""Recipe for training a Transformer ASR system with Common Voice.
-The system employs an encoder, a decoder, and an attention mechanism
-between them. Decoding is performed with (CTC/Att joint) beamsearch.
+"""Recipe for training a transformer ASR system with Common Voice.
 
 To run this recipe, do the following:
-> python train.py hparams/train_<variant>.yaml
-
-With the default hyperparameters, the system employs a convolutional frontend (ContextNet) and a transformer.
-The decoder is based on a Transformer decoder.
-
-The neural network is trained on both CTC and negative-log likelihood
-targets and sub-word units estimated with Byte Pairwise Encoding (BPE)
-are used as basic recognition tokens.
+> python train.py hparams/<path-to-config>.yaml
 
 The experiment file is flexible enough to support a large variety of
 different systems. By properly changing the parameter files, you can try
 different encoders, decoders, tokens (e.g, characters instead of BPE),
-training split (e.g, train-clean 100 rather than the full one), and many
-other possible variations.
-
+training split, and many other possible variations.
 
 Authors
  * Titouan Parcollet 2021
@@ -124,8 +113,6 @@ class ASR(sb.core.Brain):
                 self.wer_metric.append(ids, predicted_words, target_words)
                 self.cer_metric.append(ids, predicted_words, target_words)
 
-            # compute the accuracy of the one-step-forward prediction
-            self.acc_metric.append(p_seq, tokens_eos, tokens_eos_lens)
         return loss
 
     def fit_batch(self, batch):
@@ -163,7 +150,6 @@ class ASR(sb.core.Brain):
     def on_stage_start(self, stage, epoch):
         """Gets called at the beginning of each epoch"""
         if stage != sb.Stage.TRAIN:
-            self.acc_metric = self.hparams.acc_computer()
             self.cer_metric = self.hparams.cer_computer()
             self.wer_metric = self.hparams.error_rate_computer()
 
@@ -174,7 +160,6 @@ class ASR(sb.core.Brain):
         if stage == sb.Stage.TRAIN:
             self.train_stats = stage_stats
         else:
-            stage_stats["ACC"] = self.acc_metric.summarize()
             current_epoch = self.hparams.epoch_counter.current
             valid_search_interval = self.hparams.valid_search_interval
             if (
@@ -208,10 +193,6 @@ class ASR(sb.core.Brain):
                 stats_meta=epoch_stats,
                 train_stats=self.train_stats,
                 valid_stats=stage_stats,
-            )
-            self.checkpointer.save_and_keep_only(
-                meta={"ACC": stage_stats["ACC"], "epoch": epoch},
-                max_keys=["ACC"],
             )
 
         elif stage == sb.Stage.TEST:

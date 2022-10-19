@@ -1,24 +1,14 @@
 #!/usr/bin/env python3
 
-"""Recipe for training a CTC ASR system with Common Voice.
-The system employs a CRDNN encoder and a CTC decoder.
-Decoding is performed with greedy decoding (will be extended to beam search).
+"""Recipe for training a connectionist temporal classification ASR system with Common Voice.
 
 To run this recipe, do the following:
-> python train.py hparams/train_<variant>.yaml
-
-With the default hyperparameters, the system employs a CRDNN encoder
-and a CTC decoder.
-
-The neural network is trained on CTC and sub-word units estimated with
-Byte Pairwise Encoding (BPE) are used as basic recognition tokens.
+> python train.py hparams/<path-to-config>.yaml
 
 The experiment file is flexible enough to support a large variety of
 different systems. By properly changing the parameter files, you can try
 different encoders, decoders, tokens (e.g, characters instead of BPE),
-training split (e.g, train-clean 100 rather than the full one), and many
-other possible variations.
-
+training split, and many other possible variations.
 
 Authors
  * Titouan Parcollet 2021
@@ -47,12 +37,24 @@ class ASR(sb.core.Brain):
         tokens_bos, _ = batch.tokens_bos
         wavs, wav_lens = wavs.to(self.device), wav_lens.to(self.device)
 
-        if stage == sb.Stage.TRAIN:
-            if hasattr(self.hparams, "augmentation"):
-                wavs = self.hparams.augmentation(wavs, wav_lens)
+        if hasattr(self.modules, "wav2vec2"):
+            # Add augmentation if specified
+            if stage == sb.Stage.TRAIN:
+                if hasattr(self.hparams, "augmentation"):
+                    wavs = self.hparams.augmentation(wavs, wav_lens)
 
-        # Forward pass
-        feats = self.hparams.compute_features(wavs)
+            # Forward pass
+            feats = self.modules.wav2vec2(wavs)
+        else:
+            # Forward pass
+            feats = self.hparams.compute_features(wavs)
+            feats = self.modules.normalize(feats, wav_lens)
+
+            # Add augmentation if specified
+            if stage == sb.Stage.TRAIN:
+                if hasattr(self.hparams, "augmentation"):
+                    feats = self.hparams.augmentation(feats)
+
         x = self.modules.enc(feats)
         logits = self.modules.ctc_lin(x)
         p_ctc = self.hparams.log_softmax(logits)
@@ -90,6 +92,9 @@ class ASR(sb.core.Brain):
         """Train the parameters given a single batch in input"""
         if self.auto_mix_prec:
 
+            if hasattr(self.hparams, "wav2vec2"):
+                if not self.hparams.wav2vec2.freeze:
+                    self.optimizer_wav2vec2.zero_grad()
             self.optimizer.zero_grad()
 
             with torch.cuda.amp.autocast():
@@ -97,9 +102,15 @@ class ASR(sb.core.Brain):
                 loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
             self.scaler.scale(loss).backward()
+            if hasattr(self.hparams, "wav2vec2"):
+                if not self.hparams.wav2vec2.freeze:
+                    self.scaler.unscale_(self.optimizer_wav2vec2)
             self.scaler.unscale_(self.optimizer)
 
             if self.check_gradients(loss):
+                if hasattr(self.hparams, "wav2vec2"):
+                    if not self.hparams.wav2vec2.freeze:
+                        self.scaler.step(self.optimizer_wav2vec2)
                 self.scaler.step(self.optimizer)
 
             self.scaler.update()
@@ -110,8 +121,14 @@ class ASR(sb.core.Brain):
             loss.backward()
 
             if self.check_gradients(loss):
+                if hasattr(self.hparams, "wav2vec2"):
+                    if not self.hparams.wav2vec2.freeze:
+                        self.optimizer_wav2vec2.step()
                 self.optimizer.step()
 
+            if hasattr(self.hparams, "wav2vec2"):
+                if not self.hparams.wav2vec2.freeze:
+                    self.optimizer_wav2vec2.zero_grad()
             self.optimizer.zero_grad()
 
         return loss.detach()
@@ -142,10 +159,28 @@ class ASR(sb.core.Brain):
         # Perform end-of-iteration things, like annealing, logging, etc.
         if stage == sb.Stage.VALID:
             old_lr, new_lr = self.hparams.lr_annealing(stage_stats["loss"])
+            if hasattr(self.hparams, "wav2vec2"):
+                (
+                    old_lr_wav2vec2,
+                    new_lr_wav2vec2,
+                ) = self.hparams.lr_annealing_wav2vec2(stage_stats["loss"])
             sb.nnet.schedulers.update_learning_rate(self.optimizer, new_lr)
+            if hasattr(self.hparams, "wav2vec2"):
+                if not self.hparams.wav2vec2.freeze:
+                    sb.nnet.schedulers.update_learning_rate(
+                        self.optimizer_wav2vec2, new_lr_wav2vec2
+                    )
 
             self.hparams.train_logger.log_stats(
-                stats_meta={"epoch": epoch, "lr": old_lr},
+                stats_meta=(
+                    {
+                        "epoch": epoch,
+                        "lr": old_lr,
+                        "lr_wav2vec": old_lr_wav2vec2,
+                    }
+                    if hasattr(self.hparams, "wav2vec2")
+                    else {"epoch": epoch, "lr": old_lr}
+                ),
                 train_stats=self.train_stats,
                 valid_stats=stage_stats,
             )
@@ -159,6 +194,19 @@ class ASR(sb.core.Brain):
             )
             with open(self.hparams.wer_file, "w") as w:
                 self.wer_metric.write_stats(w)
+
+    def init_optimizers(self):
+        """Initializes the wav2vec2 optimizer and model optimizer"""
+        if hasattr(self.hparams, "wav2vec2"):
+            if not self.hparams.wav2vec2.freeze:
+                self.optimizer_wav2vec2 = self.hparams.opt_class_wav2vec2(
+                    self.modules.wav2vec2.parameters()
+                )
+                if self.checkpointer is not None:
+                    self.checkpointer.add_recoverable(
+                        "optimizer_wav2vec2", self.optimizer_wav2vec2
+                    )
+        super().init_optimizers()
 
 
 # Define custom data procedure

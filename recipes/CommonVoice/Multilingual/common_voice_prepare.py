@@ -80,7 +80,7 @@ def prepare_common_voice(
     dataset_dir: "Optional[str]" = None,
     manifest_dir: "Optional[str]" = None,
     copy_clips: "bool" = True,
-    debug: "bool" = False,
+    locales: "Optional[Sequence[str]]" = None,
 ) -> "None":
     """Prepare the data manifest CSV files for Common Voice dataset
     (see https://commonvoice.mozilla.org/en/datasets).
@@ -110,8 +110,9 @@ def prepare_common_voice(
     copy_clips:
         True to copy the original audio clips in `manifest_dir`,
         False otherwise.
-    debug:
-        True to enable debug mode, False otherwise.
+    locales:
+        The locales to include (e.g. "en", "it", etc.).
+        Default to all the locales in the given version of Common Voice.
 
     Examples
     --------
@@ -130,34 +131,28 @@ def prepare_common_voice(
         manifest_dir = f"{dataset_dir}_{dataset_size}"
 
     # If dataset_dir does not exists but manifest_dir does,
-    # assume trimming has been done already
-    if not os.path.isdir(dataset_dir) and os.path.isdir(manifest_dir):
-        train_raw_csv_file = os.path.join(manifest_dir, "train_raw.csv")
-        dev_raw_csv_file = os.path.join(manifest_dir, "dev_raw.csv")
-        test_raw_csv_file = os.path.join(manifest_dir, "test_raw.csv")
-
-        # Redo preprocessing on the fly (it is fast and might change in the future)
-        _LOGGER.log(logging.INFO, f"Creating data manifest CSV files...")
-        for raw_csv_file in [
-            train_raw_csv_file,
-            dev_raw_csv_file,
-            test_raw_csv_file,
-        ]:
-            csv_file = raw_csv_file.replace("_raw", "")
-            # if not os.path.isfile(csv_file):
-            preprocess_csv_file(raw_csv_file, csv_file)
-            # else:
-            #    _LOGGER.log(logging.INFO, f"{csv_file} already created")
-
-        _LOGGER.log(logging.INFO, "Done!")
-        return
+    # assume download and trim have already been done already
+    skip_trim = skip_download = not os.path.isdir(
+        dataset_dir
+    ) and os.path.isdir(manifest_dir)
 
     # Get dataset metadata from Hugging Face Hub
-    locales = (
-        datasets.get_dataset_config_names(dataset_name, use_auth_token=True)
-        if not debug
-        else ["it", "ar"]
-    )
+    if locales is None:
+        if skip_download and dataset_version == "10_0":
+            # If data already exist, use hardcoded locales to avoid creating a Hugging Face account
+            locales = [
+                "en", "fa", "fr", "es", "sl", "kab", "cy", "ca", "de", "tt", "ta", "ru", "nl", "it", "eu", "tr", "ar",
+                "zh-TW", "br", "pt", "eo", "zh-CN", "id", "ia", "lv", "ja", "rw", "sv-SE", "cnh", "et", "ky", "ro", "hsb",
+                "el", "cs", "pl", "rm-sursilv", "rm-vallader", "mn", "zh-HK", "ab", "cv", "uk", "mt", "as", "ka", "fy-NL",
+                "dv", "pa-IN", "vi", "or", "ga-IE", "fi", "hu", "th", "lt", "lg", "hi", "bas", "sk", "kmr", "bg", "kk",
+                "ba", "gl", "ug", "hy-AM", "be", "ur", "gn", "sr", "uz", "mr", "da", "myv", "nn-NO", "ha", "ckb", "ml",
+                "mdf", "sw", "sat", "tig", "ig", "nan-tw", "mhr", "bn", "tok", "yue", "sah", "mk", "sc", "vot", "az",
+                "ast", "ne-NP",
+            ]
+        else:
+            locales = datasets.get_dataset_config_names(
+                dataset_name, use_auth_token=True
+            )
 
     output_tsv_files = []
     for i, locale in enumerate(locales):
@@ -167,7 +162,7 @@ def prepare_common_voice(
         )
         _LOGGER.log(logging.INFO, f"Locale: {locale}")
         input_locale_dir = os.path.join(dataset_dir, locale)
-        if not os.path.isdir(input_locale_dir):
+        if not skip_download and not os.path.isdir(input_locale_dir):
             _LOGGER.log(logging.INFO, "Downloading dataset...")
             cache_dir = os.path.join(dataset_dir, "cache")
             datasets.load_dataset(
@@ -193,7 +188,7 @@ def prepare_common_voice(
         output_locale_dir = os.path.join(manifest_dir, locale)
         input_train_tsv_file = os.path.join(input_locale_dir, "train.tsv")
         output_train_tsv_file = os.path.join(output_locale_dir, "train.tsv")
-        if not os.path.isfile(output_train_tsv_file):
+        if not skip_trim and not os.path.isfile(output_train_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_train_tsv_file}...")
             trim_tsv_file(
                 input_train_tsv_file,
@@ -207,7 +202,7 @@ def prepare_common_voice(
 
         input_dev_tsv_file = os.path.join(input_locale_dir, "dev.tsv")
         output_dev_tsv_file = os.path.join(output_locale_dir, "dev.tsv")
-        if not os.path.isfile(output_dev_tsv_file):
+        if not skip_trim and not os.path.isfile(output_dev_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_dev_tsv_file}...")
             trim_tsv_file(
                 input_dev_tsv_file, output_dev_tsv_file, max_duration_s["dev"],
@@ -217,7 +212,7 @@ def prepare_common_voice(
 
         input_test_tsv_file = os.path.join(input_locale_dir, "test.tsv")
         output_test_tsv_file = os.path.join(output_locale_dir, "test.tsv")
-        if not os.path.isfile(output_test_tsv_file):
+        if not skip_trim and not os.path.isfile(output_test_tsv_file):
             _LOGGER.log(logging.INFO, f"Creating {output_test_tsv_file}...")
             trim_tsv_file(
                 input_test_tsv_file,
@@ -235,7 +230,7 @@ def prepare_common_voice(
             output_test_tsv_file,
         ]
         if not all(os.path.isfile(file) for file in output_tsv_files[-3:]):
-            _LOGGER.log(logging.INFO, "Cleaning up...")
+            _LOGGER.log(logging.INFO, "Removing due to lack of data...")
             for file in output_tsv_files[-3:]:
                 try:
                     os.remove(file)
@@ -251,36 +246,29 @@ def prepare_common_voice(
             for _ in range(3):
                 output_tsv_files.pop(-1)
 
-    _LOGGER.log(logging.INFO, f"Creating data manifest raw CSV files...")
+    # Redo merge_tsv_files on the fly
+    # (it is fast and might change depending on the selected locales)
+    _LOGGER.log(logging.INFO, f"Creating raw data manifest CSV files...")
 
     train_raw_csv_file = os.path.join(manifest_dir, "train_raw.csv")
-    if not os.path.isfile(train_raw_csv_file):
-        _LOGGER.log(logging.INFO, f"Creating {train_raw_csv_file}...")
-        merge_tsv_files(
-            [f for f in output_tsv_files if "train" in f], train_raw_csv_file
-        )
-    else:
-        _LOGGER.log(logging.INFO, f"{train_raw_csv_file} already created")
+    _LOGGER.log(logging.INFO, f"Creating {train_raw_csv_file}...")
+    merge_tsv_files(
+        [f for f in output_tsv_files if "train" in f], train_raw_csv_file
+    )
 
     dev_raw_csv_file = os.path.join(manifest_dir, "dev_raw.csv")
-    if not os.path.isfile(dev_raw_csv_file):
-        _LOGGER.log(logging.INFO, f"Creating {dev_raw_csv_file}...")
-        merge_tsv_files(
-            [f for f in output_tsv_files if "dev" in f], dev_raw_csv_file
-        )
-    else:
-        _LOGGER.log(logging.INFO, f"{dev_raw_csv_file} already created")
+    _LOGGER.log(logging.INFO, f"Creating {dev_raw_csv_file}...")
+    merge_tsv_files(
+        [f for f in output_tsv_files if "dev" in f], dev_raw_csv_file
+    )
 
     test_raw_csv_file = os.path.join(manifest_dir, "test_raw.csv")
-    if not os.path.isfile(test_raw_csv_file):
-        _LOGGER.log(logging.INFO, f"Creating {test_raw_csv_file}...")
-        merge_tsv_files(
-            [f for f in output_tsv_files if "test" in f], test_raw_csv_file
-        )
-    else:
-        _LOGGER.log(logging.INFO, f"{test_raw_csv_file} already created")
+    _LOGGER.log(logging.INFO, f"Creating {test_raw_csv_file}...")
+    merge_tsv_files(
+        [f for f in output_tsv_files if "test" in f], test_raw_csv_file
+    )
 
-    if copy_clips:
+    if not skip_download and copy_clips:
         _LOGGER.log(logging.INFO, f"Copying clips...")
         for csv_file in [
             train_raw_csv_file,
@@ -305,7 +293,8 @@ def prepare_common_voice(
                     os.makedirs(os.path.dirname(destination), exist_ok=True)
                     shutil.copyfile(source, destination)
 
-    # Redo preprocessing on the fly (it is fast and might change in the future)
+    # Redo preprocess_csv_file on the fly
+    # (it is fast and might change in the future)
     _LOGGER.log(logging.INFO, f"Creating data manifest CSV files...")
     for raw_csv_file in [
         train_raw_csv_file,
@@ -616,8 +605,12 @@ if __name__ == "__main__":
         help="dataset size",
     )
     parser.add_argument(
-        "-d", "--debug", action="store_true", help="enable debug mode",
+        "-l",
+        "--locales",
+        nargs="+",
+        default=None,
+        help="locales to include (e.g. 'en', 'it', etc.), default to all the locales in Common Voice 10.0",
     )
     args = parser.parse_args()
     for dataset_size in args.dataset_size:
-        prepare_common_voice(dataset_size, debug=args.debug)
+        prepare_common_voice(dataset_size, locales=args.locales)
