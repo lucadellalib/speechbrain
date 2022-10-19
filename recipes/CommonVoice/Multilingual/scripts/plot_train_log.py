@@ -37,7 +37,7 @@ _EXPECTED_METRICS = [
     "train loss",
     "valid loss",
     "valid CER",
-    "valid WER"
+    "valid WER",
 ]
 
 
@@ -118,9 +118,23 @@ def plot_metrics(
     with plt.style.context(style_file_or_name):
         rc("text", usetex=usetex)
         fig = plt.figure(figsize=figsize)
-        plt.plot(metrics["epoch"], metrics["train loss"], marker=".", zorder=0, label="Train loss")
-        plt.plot(metrics["epoch"], metrics["valid loss"], marker=".", zorder=1, label="Validation loss")
-        min_valid_loss_epoch = int(metrics["epoch"][metrics["valid loss"].argmin()])
+        plt.plot(
+            metrics["epoch"],
+            metrics["train loss"],
+            marker=".",
+            zorder=0,
+            label="Train loss",
+        )
+        plt.plot(
+            metrics["epoch"],
+            metrics["valid loss"],
+            marker=".",
+            zorder=1,
+            label="Validation loss",
+        )
+        min_valid_loss_epoch = int(
+            metrics["epoch"][metrics["valid loss"].argmin()]
+        )
         label = None
         if "valid CER" in metrics:
             label = f"CER = {metrics['valid CER'][min_valid_loss_epoch]}"
@@ -149,20 +163,13 @@ def plot_metrics(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Plot train log")
     parser.add_argument(
-        "train_log",
-        help="path to train log",
+        "train_log", help="path to train log",
     )
     parser.add_argument(
-        "-o",
-        "--output_image",
-        default=None,
-        help="path to output image",
+        "-o", "--output_image", default=None, help="path to output image",
     )
     parser.add_argument(
-        "-t",
-        "--title",
-        default=None,
-        help="plot title",
+        "-t", "--title", default=None, help="plot title",
     )
     parser.add_argument(
         "-f",
@@ -173,10 +180,7 @@ if __name__ == "__main__":
         help="figure size",
     )
     parser.add_argument(
-        "-u",
-        "--usetex",
-        action="store_true",
-        help="render text with LaTeX",
+        "-u", "--usetex", action="store_true", help="render text with LaTeX",
     )
     parser.add_argument(
         "-s",
@@ -188,7 +192,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     metrics = parse_train_log(args.train_log)
     output_image = args.output_image or args.train_log.replace(".txt", ".png")
-    title = args.title or output_image.capitalize().replace("_", " "). replace(".png", "")
+    title = args.title or output_image.capitalize().replace("_", " ").replace(
+        ".png", ""
+    )
     plot_metrics(
         metrics,
         output_image,
