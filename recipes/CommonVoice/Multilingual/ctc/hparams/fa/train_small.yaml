@@ -13,7 +13,7 @@ seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 # Data files and directories
-output_dir: !ref results/en/small/ctc/<seed>
+output_dir: !ref results/fa/small/ctc/<seed>
 wer_file: !ref <output_dir>/wer.
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
@@ -23,7 +23,7 @@ dataset_size: small
 dataset_version: "10_0"
 dataset_dir: !ref data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
-locales: ["en"]
+locales: ["fa"]
 
 # We remove utterances longer than 10s in the train/dev/test sets as
 # longer sentences certainly correspond to "open microphones".
@@ -32,7 +32,7 @@ avoid_if_longer_than: 10.0
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
-number_of_epochs: 100
+number_of_epochs: 250
 lr: 1.0
 sorting: ascending
 auto_mix_prec: False
