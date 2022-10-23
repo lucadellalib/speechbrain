@@ -73,7 +73,10 @@ def parse_train_log(train_log_file: "str") -> "Dict[str, ndarray]":
                     names.append(name)
                     values.append("nan")
             for name, value in zip(names, values):
-                metrics[name].append(float(value))
+                try:
+                    metrics[name].append(float(value))
+                except Exception:
+                    pass
     for name, values in metrics.items():
         metrics[name] = np.array(values)
     return metrics
