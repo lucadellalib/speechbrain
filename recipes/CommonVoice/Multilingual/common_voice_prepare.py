@@ -31,6 +31,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import datasets
 import torchaudio
 
+import string
+
+
 
 __all__ = [
     "prepare_common_voice",
@@ -519,29 +522,35 @@ def preprocess_csv_file(
             locale = row[-3]
             sentence_id = clip_file = row[1]
             clip_file = os.path.join("$root_dir", locale, "clips", clip_file)
+
+        # Unicode Normalization
+            sentence = unicode_normalisation(sentence)
             # !! Language specific cleaning !!
             # Important: feel free to specify the text
             # normalization corresponding to your alphabet
-            if locale in ["en", "fr", "it", "rw"]:
+            if locale in ["en", "fr", "it", "rw","ru"]:
                 sentence = re.sub(
                     "[^’'A-Za-z0-9À-ÖØ-öø-ÿЀ-ӿéæœâçèàûî]+", " ", sentence
                 ).upper()
+
+                if locale in ['en', 'it']:
+                    sentence = strip_accents(sentence)
 
             if locale == "fr":
                 # Replace J'y D'hui etc by J_ D_hui
                 sentence = sentence.replace("'", " ")
                 sentence = sentence.replace("’", " ")
-            elif locale == "ar":
+            elif locale in ["ar","fa"]:
                 HAMZA = "\u0621"
                 ALEF_MADDA = "\u0622"
                 ALEF_HAMZA_ABOVE = "\u0623"
                 letters = (
-                    "ابتةثجحخدذرزسشصضطظعغفقكلمنهويىءآأؤإئ"
+                    "ابپتةثجچحخدذرزسشصضطظعغفقكلمنهويىءآأؤإئ"
                     + HAMZA
                     + ALEF_MADDA
                     + ALEF_HAMZA_ABOVE
                 )
-                sentence = re.sub("[^" + letters + " ]+", "", sentence).upper()
+                sentence = re.sub("[^" + letters + " ]+", "", sentence)
             elif locale == "ga-IE":
                 # Irish lower() is complicated, but upper() is nondeterministic, so use lowercase
                 def pfxuc(a: "str") -> "bool":
@@ -561,11 +570,10 @@ def preprocess_csv_file(
                 # KeyError: 'The item En noviembre lanzaron Queen Elizabeth , coproducida por Foreign Noi$e . requires replacements which were not supplied.'
                 sentence = sentence.replace("$", "s")
 
-            # Remove accents if specified
-            if remove_accents:
-                sentence = unicodedata.normalize("NFD", sentence)
-                sentence = sentence.replace("'", " ")
-                sentence = sentence.replace("’", " ")
+            sentence = sentence.replace("'", " ")
+            sentence = sentence.replace("’", " ")
+
+            
 
             # Remove double quotes
             sentence = sentence.replace('"', " ")
@@ -594,6 +602,23 @@ def preprocess_csv_file(
         fw.write(f"Total duration in seconds: {total_duration_s}")
 
     _LOGGER.log(logging.INFO, "Done!")
+
+def unicode_normalisation(text):
+
+    try:
+        text = unicode(text, "utf-8")
+    except NameError:  # unicode is a default on python 3
+        pass
+    return str(text)
+
+def strip_accents(text):
+
+    text = (
+        unicodedata.normalize("NFD", text)
+        .encode("ascii", "ignore")
+        .decode("utf-8")
+    )
+    return text
 
 
 if __name__ == "__main__":

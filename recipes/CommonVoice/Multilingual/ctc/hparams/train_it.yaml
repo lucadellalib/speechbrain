@@ -12,18 +12,20 @@
 seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
-# Data files and directories
-output_dir: !ref results/ar/small/ctc/<seed>
-wer_file: !ref <output_dir>/wer.
-save_dir: !ref <output_dir>/save
-train_log: !ref <output_dir>/train_log.txt
-
 # Data preparation
 dataset_size: small
 dataset_version: "10_0"
 dataset_dir: !ref data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
-locales: ["ar"]
+locales: ["it"]
+
+# Data files and directories
+output_dir: !ref results/it/<dataset_size>/ctc/<seed>
+wer_file: !ref <output_dir>/wer.
+save_dir: !ref <output_dir>/save
+train_log: !ref <output_dir>/train_log.txt
+
+
 
 # We remove utterances longer than 10s in the train/dev/test sets as
 # longer sentences certainly correspond to "open microphones".
@@ -82,7 +84,7 @@ dnn_blocks: 2
 dnn_neurons: 1024
 dec_neurons: 1024
 joint_dim: 1024
-output_neurons: 38  # index(blank/eos/bos) = 0
+output_neurons: 28  # index(blank/eos/bos) = 0
 
 # Decoding parameters
 # Be sure that the bos and eos index match with the BPEs ones
