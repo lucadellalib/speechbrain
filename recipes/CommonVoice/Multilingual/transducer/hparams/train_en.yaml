@@ -34,7 +34,7 @@ avoid_if_longer_than: 10.0
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
-number_of_epochs: 250
+number_of_epochs: 100
 lr: 1.0
 # MTL for encoder with CTC (uncomment enc_lin layer)
 #number_of_ctc_epochs: 2

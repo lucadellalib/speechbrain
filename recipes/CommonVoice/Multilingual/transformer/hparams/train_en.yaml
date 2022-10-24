@@ -34,7 +34,7 @@ avoid_if_longer_than: 10.0
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
-number_of_epochs: 250
+number_of_epochs: 100
 ctc_weight: 0.3
 gradient_accumulation: 4
 loss_reduction: "batchmean"
