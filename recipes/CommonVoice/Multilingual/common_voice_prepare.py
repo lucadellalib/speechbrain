@@ -31,9 +31,6 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import datasets
 import torchaudio
 
-import string
-
-
 
 __all__ = [
     "prepare_common_voice",
@@ -143,6 +140,7 @@ def prepare_common_voice(
     if locales is None:
         if skip_download and dataset_version == "10_0":
             # If data already exist, use hardcoded locales to avoid creating a Hugging Face account
+            # fmt: off
             locales = [
                 "en", "fa", "fr", "es", "sl", "kab", "cy", "ca", "de", "tt", "ta", "ru", "nl", "it", "eu", "tr", "ar",
                 "zh-TW", "br", "pt", "eo", "zh-CN", "id", "ia", "lv", "ja", "rw", "sv-SE", "cnh", "et", "ky", "ro", "hsb",
@@ -152,6 +150,7 @@ def prepare_common_voice(
                 "mdf", "sw", "sat", "tig", "ig", "nan-tw", "mhr", "bn", "tok", "yue", "sah", "mk", "sc", "vot", "az",
                 "ast", "ne-NP",
             ]
+            # fmt: on
         else:
             locales = datasets.get_dataset_config_names(
                 dataset_name, use_auth_token=True
@@ -482,12 +481,10 @@ def merge_tsv_files(
 # Adapted from:
 # https://github.com/speechbrain/speechbrain/blob/v0.5.13/recipes/CommonVoice/common_voice_prepare.py
 def preprocess_csv_file(
-    input_csv_file: "str",
-    output_csv_file: "str",
-    remove_accents: "bool" = True,
+    input_csv_file: "str", output_csv_file: "str",
 ) -> "None":
-    """Apply Standard Common Voice preprocessing (e.g. rename fields, remove
-    accents, remove short sentences etc.) to each row of an input CSV file.
+    """Apply Standard Common Voice preprocessing (e.g. rename fields, strip accents
+    for some locales, remove short sentences etc.) to each row of an input CSV file.
 
     Parameters
     ----------
@@ -495,9 +492,6 @@ def preprocess_csv_file(
         The path to the input CSV file.
     output_csv_file:
         The path to the output CSV file.
-    remove_accents:
-        True to transform accented letters to the closest
-        corresponding non-accented letters, False otherwise.
 
     Examples
     --------
@@ -523,24 +517,24 @@ def preprocess_csv_file(
             sentence_id = clip_file = row[1]
             clip_file = os.path.join("$root_dir", locale, "clips", clip_file)
 
-        # Unicode Normalization
-            sentence = unicode_normalisation(sentence)
+            # Unicode normalization (default in Python 3)
+            sentence = str(sentence)
             # !! Language specific cleaning !!
             # Important: feel free to specify the text
             # normalization corresponding to your alphabet
-            if locale in ["en", "fr", "it", "rw","ru"]:
+            if locale in ["en", "fr", "it", "rw", "ru"]:
                 sentence = re.sub(
                     "[^’'A-Za-z0-9À-ÖØ-öø-ÿЀ-ӿéæœâçèàûî]+", " ", sentence
                 ).upper()
 
-                if locale in ['en', 'it']:
-                    sentence = strip_accents(sentence)
+                if locale in ["en", "it"]:
+                    sentence = _strip_accents(sentence)
 
             if locale == "fr":
                 # Replace J'y D'hui etc by J_ D_hui
                 sentence = sentence.replace("'", " ")
                 sentence = sentence.replace("’", " ")
-            elif locale in ["ar","fa"]:
+            elif locale in ["ar", "fa"]:
                 HAMZA = "\u0621"
                 ALEF_MADDA = "\u0622"
                 ALEF_HAMZA_ABOVE = "\u0623"
@@ -570,12 +564,10 @@ def preprocess_csv_file(
                 # KeyError: 'The item En noviembre lanzaron Queen Elizabeth , coproducida por Foreign Noi$e . requires replacements which were not supplied.'
                 sentence = sentence.replace("$", "s")
 
+            # Remove quotes
             sentence = sentence.replace("'", " ")
             sentence = sentence.replace("’", " ")
-
-            
-
-            # Remove double quotes
+            sentence = sentence.replace("`", " ")
             sentence = sentence.replace('"', " ")
 
             # Remove multiple spaces
@@ -603,16 +595,25 @@ def preprocess_csv_file(
 
     _LOGGER.log(logging.INFO, "Done!")
 
-def unicode_normalisation(text):
 
-    try:
-        text = unicode(text, "utf-8")
-    except NameError:  # unicode is a default on python 3
-        pass
-    return str(text)
+def _strip_accents(text: "str") -> "str":
+    """Strip accents from a given text by transforming accented
+    letters to the closest corresponding non-accented letters.
 
-def strip_accents(text):
+    Parameters
+    ----------
+    text:
+        The text.
 
+    Returns
+    -------
+        The text without accents.
+
+    Examples
+    --------
+    >>> _strip_accents("òàùè")
+
+    """
     text = (
         unicodedata.normalize("NFD", text)
         .encode("ascii", "ignore")

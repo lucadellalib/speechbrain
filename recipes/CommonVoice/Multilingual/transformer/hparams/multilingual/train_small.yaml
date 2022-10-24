@@ -80,11 +80,11 @@ num_decoder_layers: 6
 d_ffn: 3072
 transformer_dropout: 0.0
 activation: !name:torch.nn.GELU
-output_neurons: 1219
+output_neurons: 1218
 
 # Decoding parameters
-blank_index: 0
-pad_index: 0
+blank_index: 0  # index(blank/unk) = 0
+pad_index: !ref <blank_index>
 bos_index: 1
 eos_index: 2
 min_decode_ratio: 0.0

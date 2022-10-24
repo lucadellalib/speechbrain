@@ -391,7 +391,7 @@ if __name__ == "__main__":
         character_coverage=hparams["character_coverage"],
     )
 
-    # here we create the datasets objects as well as tokenization and encoding
+    # Here we create the datasets objects as well as tokenization and encoding
     train_data, valid_data, test_data = dataio_prepare(hparams, tokenizer)
 
     # Trainer initialization
@@ -403,7 +403,7 @@ if __name__ == "__main__":
         checkpointer=hparams["checkpointer"],
     )
 
-    # adding objects to trainer:
+    # Adding objects to trainer:
     asr_brain.tokenizer = tokenizer
 
     # Training

@@ -85,8 +85,8 @@ activation: !name:torch.nn.GELU
 output_neurons: 28
 
 # Decoding parameters
-blank_index: 0
-pad_index: 0
+blank_index: 0  # index(blank/unk) = 0
+pad_index: !ref <blank_index>
 bos_index: 1
 eos_index: 2
 min_decode_ratio: 0.0

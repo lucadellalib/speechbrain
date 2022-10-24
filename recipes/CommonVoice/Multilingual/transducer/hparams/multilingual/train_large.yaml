@@ -83,11 +83,10 @@ dnn_blocks: 2
 dnn_neurons: 1024
 dec_neurons: 1024
 joint_dim: 1024
-output_neurons: 1219  # index(blank/eos/bos) = 0
+output_neurons: 1219 # FIXME
 
 # Decoding parameters
-# Be sure that the bos and eos index match with the BPEs ones
-blank_index: 0
+blank_index: 0  # index(blank/unk) = 0
 bos_index: 1
 eos_index: 2
 beam_size: 4

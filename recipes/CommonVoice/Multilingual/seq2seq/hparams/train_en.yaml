@@ -82,12 +82,10 @@ dnn_blocks: 2
 dnn_neurons: 1024
 emb_size: 128
 dec_neurons: 1024
-output_neurons: 28  # BPE size, index(blank/eos/bos) = 0
+output_neurons: 28
 
 # Decoding parameters
-# Be sure that the bos and eos index match with the BPEs ones
-# TODO: check indices, seq2seq in ASR sets them differently
-blank_index: 0
+blank_index: 0  # index(blank/unk) = 0
 bos_index: 1
 eos_index: 2
 min_decode_ratio: 0.0
