@@ -17,14 +17,13 @@ dataset_size: small
 dataset_version: "10_0"
 dataset_dir: !ref data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
-locales: ["en"]
+locales: ["ar"]
 
 # Data files and directories
-output_dir: !ref results/en/<dataset_size>/ctc/<seed>
+output_dir: !ref results/ar/<dataset_size>/ctc/<seed>
 wer_file: !ref <output_dir>/wer.
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
-
 
 
 
@@ -85,7 +84,7 @@ dnn_blocks: 2
 dnn_neurons: 1024
 dec_neurons: 1024
 joint_dim: 1024
-output_neurons: 27
+output_neurons: 37
 
 # Decoding parameters
 blank_index: 0  # index(blank/unk) = 0
