@@ -85,7 +85,7 @@ dnn_blocks: 2
 dnn_neurons: 1024
 dec_neurons: 1024
 joint_dim: 1024
-output_neurons: 37
+output_neurons: 38
 
 # Decoding parameters
 blank_index: 0  # index(blank/unk) = 0
