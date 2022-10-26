@@ -17,11 +17,11 @@ dataset_size: small
 dataset_version: "10_0"
 dataset_dir: !ref data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
-locales: ["en"] # All languages
+locales: ["rw"] # All languages
 
 
 # Data files and directories
-output_dir: !ref results/en/<dataset_size>/transducer/<seed>
+output_dir: !ref results/rw/<dataset_size>/transducer/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt

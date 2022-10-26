@@ -17,10 +17,10 @@ dataset_size: small
 dataset_version: "10_0"
 dataset_dir: !ref data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
-locales: ["en"] # All languages
+locales: ["ar"] # All languages
 
 # Data files and directories
-output_dir: !ref results/en/<dataset_size>/transformer/<seed>
+output_dir: !ref results/ar/<dataset_size>/transformer/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
@@ -82,7 +82,7 @@ num_decoder_layers: 6
 d_ffn: 3072
 transformer_dropout: 0.0
 activation: !name:torch.nn.GELU
-output_neurons: 27
+output_neurons: 37
 
 # Decoding parameters
 blank_index: 0  # index(blank/unk) = 0
