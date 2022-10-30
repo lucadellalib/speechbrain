@@ -637,6 +637,11 @@ if __name__ == "__main__":
         default=None,
         help="locales to include (e.g. 'en', 'it', etc.), default to all the locales in Common Voice 10.0",
     )
+    parser.add_argument(
+        "-dataset_dir",
+        default=None,
+    )
+    
     args = parser.parse_args()
     for dataset_size in args.dataset_size:
-        prepare_common_voice(dataset_size, locales=args.locales)
+        prepare_common_voice(dataset_size, locales=args.locales,dataset_dir=args.dataset_dir)
