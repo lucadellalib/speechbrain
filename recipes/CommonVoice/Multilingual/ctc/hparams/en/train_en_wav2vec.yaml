@@ -10,7 +10,7 @@ __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 
 # Data preparation
-dataset_size: small
+dataset_size: full
 dataset_version: "10_0"
 dataset_dir: !ref data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
@@ -29,7 +29,7 @@ avoid_if_longer_than: 10.0
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
-number_of_epochs: 100
+number_of_epochs: 30
 lr_model: 1.0
 lr_wav2vec2: 0.0001
 sorting: ascending
