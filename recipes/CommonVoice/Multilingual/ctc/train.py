@@ -43,7 +43,7 @@ class ASR(sb.core.Brain):
                     wavs = self.hparams.augmentation(wavs, wav_lens)
 
             # Forward pass
-            feats = self.modules.wav2vec2(wavs)
+            feats = self.modules.hubert(wavs)
         else:
             # Forward pass
             feats = self.hparams.compute_features(wavs)
@@ -190,7 +190,7 @@ class ASR(sb.core.Brain):
                         self.optimizer_wav2vec2, new_lr_wav2vec2
                     )
             elif hasattr(self.hparams, "hubert"):
-                if not self.hparams.whubert.freeze:
+                if not self.hparams.hubert.freeze:
                     sb.nnet.schedulers.update_learning_rate(
                         self.optimizer_hubert, new_lr_hubert
                     )
