@@ -36,7 +36,7 @@ class ASR(sb.core.Brain):
         wavs, wav_lens = batch.sig
         wavs, wav_lens = wavs.to(self.device), wav_lens.to(self.device)
 
-        if hasattr(self.modules, "wav2vec2"):
+        if hasattr(self.modules, "wav2vec2") or hasattr(self.modules, "hubert"):
             # Add augmentation if specified
             if stage == sb.Stage.TRAIN:
                 if hasattr(self.hparams, "augmentation"):
@@ -94,6 +94,9 @@ class ASR(sb.core.Brain):
             if hasattr(self.hparams, "wav2vec2"):
                 if not self.hparams.wav2vec2.freeze:
                     self.optimizer_wav2vec2.zero_grad()
+            elif hasattr(self.hparams, "hubert"):
+                if not self.hparams.hubert.freeze:
+                    self.optimizer_hubert.zero_grad()
             self.optimizer.zero_grad()
 
             with torch.cuda.amp.autocast():
@@ -104,12 +107,18 @@ class ASR(sb.core.Brain):
             if hasattr(self.hparams, "wav2vec2"):
                 if not self.hparams.wav2vec2.freeze:
                     self.scaler.unscale_(self.optimizer_wav2vec2)
+            elif hasattr(self.hparams, "hubert"):
+                if not self.hparams.hubert.freeze:
+                    self.scaler.unscale_(self.optimizer_hubert)
             self.scaler.unscale_(self.optimizer)
 
             if self.check_gradients(loss):
                 if hasattr(self.hparams, "wav2vec2"):
                     if not self.hparams.wav2vec2.freeze:
                         self.scaler.step(self.optimizer_wav2vec2)
+                elif hasattr(self.hparams, "hubert"):
+                    if not self.hparams.hubert.freeze:
+                        self.scaler.step(self.optimizer_hubert)
                 self.scaler.step(self.optimizer)
 
             self.scaler.update()
@@ -123,11 +132,17 @@ class ASR(sb.core.Brain):
                 if hasattr(self.hparams, "wav2vec2"):
                     if not self.hparams.wav2vec2.freeze:
                         self.optimizer_wav2vec2.step()
+                elif hasattr(self.hparams, "hubert"):
+                    if not self.hparams.hubert.freeze:
+                        self.optimizer_hubert.step()
                 self.optimizer.step()
 
             if hasattr(self.hparams, "wav2vec2"):
                 if not self.hparams.wav2vec2.freeze:
                     self.optimizer_wav2vec2.zero_grad()
+            elif hasattr(self.hparams, "hubert"):
+                if not self.hparams.hubert.freeze:
+                    self.optimizer_hubert.zero_grad()                    
             self.optimizer.zero_grad()
 
         return loss.detach()
@@ -163,22 +178,42 @@ class ASR(sb.core.Brain):
                     old_lr_wav2vec2,
                     new_lr_wav2vec2,
                 ) = self.hparams.lr_annealing_wav2vec2(stage_stats["loss"])
+            elif hasattr(self.hparams, "hubert"):
+                (
+                    old_lr_hubert,
+                    new_lr_hubert,
+                ) = self.hparams.lr_annealing_hubert(stage_stats["loss"])
             sb.nnet.schedulers.update_learning_rate(self.optimizer, new_lr)
             if hasattr(self.hparams, "wav2vec2"):
                 if not self.hparams.wav2vec2.freeze:
                     sb.nnet.schedulers.update_learning_rate(
                         self.optimizer_wav2vec2, new_lr_wav2vec2
                     )
-
-            self.hparams.train_logger.log_stats(
-                stats_meta=(
-                    {
+            elif hasattr(self.hparams, "hubert"):
+                if not self.hparams.whubert.freeze:
+                    sb.nnet.schedulers.update_learning_rate(
+                        self.optimizer_hubert, new_lr_hubert
+                    )
+            
+            if hasattr(self.hparams, "wav2vec2"):
+                stats_meta_data={
                         "epoch": epoch,
                         "lr": old_lr,
                         "lr_wav2vec": old_lr_wav2vec2,
                     }
-                    if hasattr(self.hparams, "wav2vec2")
-                    else {"epoch": epoch, "lr": old_lr}
+            elif hasattr(self.hparams, "hubert"):
+                stats_meta_data={
+                        "epoch": epoch,
+                        "lr": old_lr,
+                        "lr_hubert": old_lr_hubert,
+                    }
+            else:
+                stats_meta_data={"epoch": epoch, "lr": old_lr}
+
+
+            self.hparams.train_logger.log_stats(
+                stats_meta=(
+                  stats_meta_data
                 ),
                 train_stats=self.train_stats,
                 valid_stats=stage_stats,
@@ -204,6 +239,15 @@ class ASR(sb.core.Brain):
                 if self.checkpointer is not None:
                     self.checkpointer.add_recoverable(
                         "optimizer_wav2vec2", self.optimizer_wav2vec2
+                    )
+        elif hasattr(self.hparams, "hubert"):
+            if not self.hparams.hubert.freeze:
+                self.optimizer_hubert = self.hparams.opt_class_hubert(
+                    self.modules.hubert.parameters()
+                )
+                if self.checkpointer is not None:
+                    self.checkpointer.add_recoverable(
+                        "optimizer_hubert", self.optimizer_hubert
                     )
         super().init_optimizers()
 
