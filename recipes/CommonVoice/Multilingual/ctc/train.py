@@ -43,7 +43,10 @@ class ASR(sb.core.Brain):
                     wavs = self.hparams.augmentation(wavs, wav_lens)
 
             # Forward pass
-            feats = self.modules.hubert(wavs)
+            if hasattr(self.modules, "wav2vec2"):
+                feats = self.modules.wav2vec2(wavs)
+            else:
+                feats = self.modules.hubert(wavs)
         else:
             # Forward pass
             feats = self.hparams.compute_features(wavs)
