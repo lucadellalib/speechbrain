@@ -527,7 +527,7 @@ def preprocess_csv_file(
                     "[^’'A-Za-z0-9À-ÖØ-öø-ÿЀ-ӿéæœâçèàûî]+", " ", sentence
                 ).upper()
 
-                if locale in ["en", "it"]:
+                if locale in ["en", "it","rw"]:
                     sentence = _strip_accents(sentence)
 
             if locale == "fr":
