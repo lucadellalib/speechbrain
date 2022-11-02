@@ -195,13 +195,13 @@ class ASR(sb.core.Brain):
                         self.optimizer_hubert, new_lr_hubert
                     )
             
-            if hasattr(self.hparams, "wav2vec2"):
+            if hasattr(self.hparams, "wav2vec2") and not self.hparams.wav2vec2.freeze:
                 stats_meta_data={
                         "epoch": epoch,
                         "lr": old_lr,
                         "lr_wav2vec": old_lr_wav2vec2,
                     }
-            elif hasattr(self.hparams, "hubert"):
+            elif hasattr(self.hparams, "hubert") and not self.hparams.hubert.freeze:
                 stats_meta_data={
                         "epoch": epoch,
                         "lr": old_lr,

@@ -1,5 +1,5 @@
 # ############################################################################
-# Model: wav2vec2 + DNN + CTC
+# Model: HuBERT + DNN + CTC
 # Augmentation: SpecAugment
 # Authors: Titouan Parcollet 2021; Luca Della Libera 2022
 # ############################################################################
@@ -9,7 +9,7 @@ seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 # Data files and directories
-output_dir: !ref results/multilingual/small/ctc_wav2vec2_frozen/<seed>
+output_dir: !ref results/multilingual/small/ctc_hubert/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
@@ -29,8 +29,8 @@ ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
 number_of_epochs: 100
-lr_model: 0.1
-lr_wav2vec2: 0.0001
+lr_model: 1.0
+lr_hubert: 0.0001
 sorting: ascending
 auto_mix_prec: False
 
@@ -62,9 +62,9 @@ test_dataloader_opts:
     num_workers: 6
 
 # Model parameters
-wav2vec2_hub: facebook/wav2vec2-large-lv60 # URL for the biggest Fairseq English wav2vec2 model
-wav2vec2_output_dim: 1024
-freeze_wav2vec2: True
+hubert_hub: facebook/hubert-large-ls960-ft # URL for the Hubert large model fine-tuned on 960h of Librispeech on 16kHz sampled speech audio
+hubert_output_dim: 1024
+freeze_hubert: False
 activation: !name:torch.nn.LeakyReLU
 dropout: 0.15
 dnn_neurons: 1024
@@ -80,14 +80,14 @@ augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
     speeds: [95, 100, 105]
 
 # Models
-wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
-    source: !ref <wav2vec2_hub>
+hubert: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
+    source: !ref <hubert_hub>
     output_norm: True
-    freeze: !ref <freeze_wav2vec2>
-    save_path: !ref <save_dir>/wav2vec2_checkpoint
+    freeze: !ref <freeze_hubert>
+    save_path: !ref <save_dir>/hubert_checkpoint
 
 enc: !new:speechbrain.nnet.containers.Sequential
-    input_shape: [null, null, !ref <wav2vec2_output_dim>]
+    input_shape: [null, null, !ref <hubert_output_dim>]
     linear1: !name:speechbrain.nnet.linear.Linear
         n_neurons: !ref <dnn_neurons>
         bias: True
@@ -119,7 +119,7 @@ ctc_cost: !name:speechbrain.nnet.losses.ctc_loss
     blank_index: !ref <blank_index>
 
 modules:
-    wav2vec2: !ref <wav2vec2>
+    hubert: !ref <hubert>
     enc: !ref <enc>
     ctc_lin: !ref <ctc_lin>
 
@@ -138,11 +138,11 @@ lr_annealing: !new:speechbrain.nnet.schedulers.NewBobScheduler
     annealing_factor: 0.8
     patient: 0
 
-opt_class_wav2vec2: !name:torch.optim.Adam
-    lr: !ref <lr_wav2vec2>
+opt_class_hubert: !name:torch.optim.Adam
+    lr: !ref <lr_hubert>
 
-lr_annealing_wav2vec2: !new:speechbrain.nnet.schedulers.NewBobScheduler
-    initial_value: !ref <lr_wav2vec2>
+lr_annealing_hubert: !new:speechbrain.nnet.schedulers.NewBobScheduler
+    initial_value: !ref <lr_hubert>
     improvement_threshold: 0.0025
     annealing_factor: 0.9
     patient: 0
@@ -160,10 +160,10 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
 checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
     checkpoints_dir: !ref <save_dir>
     recoverables:
-        wav2vec2: !ref <wav2vec2>
+        hubert: !ref <hubert>
         model: !ref <model>
         scheduler: !ref <lr_annealing>
-        scheduler_wav2vec2: !ref <lr_annealing_wav2vec2>
+        scheduler_hubert: !ref <lr_annealing_hubert>
         counter: !ref <epoch_counter>
 
 train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger

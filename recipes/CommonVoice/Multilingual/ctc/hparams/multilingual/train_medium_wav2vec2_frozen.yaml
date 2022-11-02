@@ -9,7 +9,7 @@ seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 # Data files and directories
-output_dir: !ref results/multilingual/medium/ctc_wav2vec2/<seed>
+output_dir: !ref results/multilingual/medium/ctc_wav2vec2_frozen/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
@@ -29,7 +29,7 @@ ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
 number_of_epochs: 100
-lr_model: 1.0
+lr_model: 0.1
 lr_wav2vec2: 0.0001
 sorting: ascending
 auto_mix_prec: False
