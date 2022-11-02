@@ -15,7 +15,7 @@ dataset_size: medium
 dataset_version: "10_0"
 dataset_dir: !ref data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
-locales: ["it"] # All languages
+locales: ["rw"] # All languages
 
 # Data files and directories
 output_dir: !ref results/it/<dataset_size>/seq2seq/<seed>
