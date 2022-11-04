@@ -64,7 +64,7 @@ test_dataloader_opts:
     num_workers: 6
 
 # Model parameters
-hubert_hub: facebook/hubert-large-ls960-ft # URL for the Hubert large model fine-tuned on 960h of Librispeech on 16kHz sampled speech audio
+hubert_hub: facebook/hubert-large-ll60k # URL for the Hubert large model fine-tuned on 960h of Librispeech on 16kHz sampled speech audio
 hubert_output_dim: 1024
 freeze_hubert: False
 activation: !name:torch.nn.LeakyReLU
