@@ -4,12 +4,12 @@
 # ovhai data upload BHS common_voice_10_0_scripts run_experiment.sh
 # bash submit_ovhai_job.sh <size> <model> <config>
 
-SIZE=$1
-MODEL=$2
-CONFIG=$3
+SIZE=small
+MODEL=ctc
+CONFIG=hparams/multilingual/train_small_hubert_ll60k.yaml
 
 ovhai job run ovhcom/ai-training-pytorch:latest \
-    --name common_voice_10_0_${SIZE}_${MODEL}_wav2vec2_frozen \
+    --name common_voice_10_0_${SIZE}_${MODEL}_hubert_ll60k \
     --flavor ai1-1-gpu \
     --gpu 1 \
     --volume common_voice_10_0_${SIZE}@BHS/:/workspace/common_voice_10_0_${SIZE}/:RO \
