@@ -9,7 +9,7 @@ MODEL=$2
 CONFIG=$3
 
 ovhai job run ovhcom/ai-training-pytorch:latest \
-    --name common_voice_10_0_${SIZE}_${MODEL} \
+    --name common_voice_10_0_${SIZE}_${MODEL}_wav2vec2_frozen \
     --flavor ai1-1-gpu \
     --gpu 1 \
     --volume common_voice_10_0_${SIZE}@BHS/:/workspace/common_voice_10_0_${SIZE}/:RO \
