@@ -137,7 +137,7 @@ def plot_metrics(
         )
         min_valid_loss_epoch = int(
             metrics["epoch"][metrics["valid loss"].argmin()]
-        )
+        ) - 1
         label = None
         if "valid CER" in metrics:
             label = f"CER = {metrics['valid CER'][min_valid_loss_epoch]}"
