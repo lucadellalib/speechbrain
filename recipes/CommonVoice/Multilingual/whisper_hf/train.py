@@ -331,6 +331,12 @@ if __name__ == "__main__":
         "-t", "--test_only", action="store_true",
     )
     parser.add_argument(
+        "-i",
+        "--dataset_dir",
+        default=None,
+        help="path to the dataset directory",
+    )
+    parser.add_argument(
         "-o",
         "--output_dir",
         default=None,
