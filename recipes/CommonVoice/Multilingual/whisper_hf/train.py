@@ -93,9 +93,9 @@ def fine_tune_whisper(
     dataset = load_dataset(
         "csv",
         data_files={
-            "train": os.path.join(manifest_dir, "testtest.csv"),
-            "dev": os.path.join(manifest_dir, "testtest.csv"),
-            "test": os.path.join(manifest_dir, "testtest.csv"),
+            "train": os.path.join(manifest_dir, "train.csv"),
+            "dev": os.path.join(manifest_dir, "dev.csv"),
+            "test": os.path.join(manifest_dir, "test.csv"),
         },
     )
     dataset = dataset.remove_columns(
