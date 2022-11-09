@@ -42,6 +42,7 @@ def fine_tune_whisper(
     dataset_size: "str" = "small",
     locales: "Optional[Sequence[str]]" = None,
     test_only: "bool" = False,
+    output_dir: "Optional[str]" = None,
 ) -> "None":
     """Fine-tune Whisper model on Common Voice dataset.
 
@@ -60,6 +61,8 @@ def fine_tune_whisper(
         Default to all the locales in the given version of Common Voice.
     test_only:
         True to skip fine-tuning, False otherwise.
+    output_dir:
+        The path to the output directory.
 
     Examples
     --------
@@ -222,13 +225,14 @@ def fine_tune_whisper(
     # Build trainer
     # https://github.com/huggingface/transformers/blob/e82c1cb78e178519060b9391214727be75a218ca/src/transformers/training_args.py#L121
     seed = 1234
-    output_dir = os.path.join(
-        "results",
-        "multilingual" if locales is None else "_".join(locales),
-        dataset_size,
-        os.path.basename(whisper_model),
-        str(seed),
-    )
+    if output_dir is None:
+        output_dir = os.path.join(
+            "results",
+            "multilingual" if locales is None else "_".join(locales),
+            dataset_size,
+            os.path.basename(whisper_model),
+            str(seed),
+        )
     training_args = Seq2SeqTrainingArguments(
         seed=seed,
         output_dir=output_dir,
@@ -325,8 +329,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "-t", "--test_only", action="store_true",
     )
+    parser.add_argument(
+        "-o",
+        "--output_dir",
+        default=None,
+        help="path to the output directory",
+    )
 
     args = parser.parse_args()
     fine_tune_whisper(
-        args.whisper_model, args.dataset_size, args.locales, args.test_only
+        args.whisper_model,
+        args.dataset_size,
+        args.locales,
+        args.test_only,
+        args.output_dir,
     )
