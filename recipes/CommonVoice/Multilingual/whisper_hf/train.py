@@ -42,6 +42,7 @@ def fine_tune_whisper(
     dataset_size: "str" = "small",
     locales: "Optional[Sequence[str]]" = None,
     test_only: "bool" = False,
+    dataset_dir: "Optional[str]" = None,
     output_dir: "Optional[str]" = None,
 ) -> "None":
     """Fine-tune Whisper model on Common Voice dataset.
@@ -70,7 +71,7 @@ def fine_tune_whisper(
 
     """
     dataset_version = "10_0"
-    dataset_dir = os.path.join("..", "data", f"common_voice_{dataset_version}")
+    # dataset_dir = os.path.join("..", "data", f"common_voice_{dataset_version}")
     manifest_dir = f"{dataset_dir}_{dataset_size}"
     prepare_common_voice(
         dataset_size,
@@ -342,5 +343,6 @@ if __name__ == "__main__":
         args.dataset_size,
         args.locales,
         args.test_only,
+        args.dataset_dir,
         args.output_dir,
     )
