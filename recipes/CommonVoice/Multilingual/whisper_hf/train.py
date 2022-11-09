@@ -91,9 +91,9 @@ def fine_tune_whisper(
     dataset = load_dataset(
         "csv",
         data_files={
-            "train": os.path.join(manifest_dir, "train.csv"),
-            "dev": os.path.join(manifest_dir, "dev.csv"),
-            "test": os.path.join(manifest_dir, "test.csv"),
+            "train": os.path.join(manifest_dir, "testtest.csv"),
+            "dev": os.path.join(manifest_dir, "testtest.csv"),
+            "test": os.path.join(manifest_dir, "testtest.csv"),
         },
     )
     dataset = dataset.remove_columns(
@@ -201,6 +201,10 @@ def fine_tune_whisper(
         # We do not want to group tokens when computing the metrics
         pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
         label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+
+        # To lower case
+        pred_str = [s.lower() for s in pred_str]
+        label_str = [s.lower() for s in label_str]
 
         cer = 100 * cer_metric.compute(
             predictions=pred_str, references=label_str
