@@ -28,7 +28,6 @@ from transformers import (
     EvalPrediction,
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
-    TrainerCallback,
     WhisperFeatureExtractor,
     WhisperForConditionalGeneration,
     WhisperProcessor,
