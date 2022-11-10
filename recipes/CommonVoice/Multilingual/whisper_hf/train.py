@@ -62,6 +62,8 @@ def fine_tune_whisper(
         Default to all the locales in the given version of Common Voice.
     test_only:
         True to skip fine-tuning, False otherwise.
+    dataset_dir:
+        The path to the dataset directory.
     output_dir:
         The path to the output directory.
 
@@ -71,7 +73,8 @@ def fine_tune_whisper(
 
     """
     dataset_version = "10_0"
-    # dataset_dir = os.path.join("..", "data", f"common_voice_{dataset_version}")
+    if dataset_dir is None:
+        dataset_dir = os.path.join("..", "data", f"common_voice_{dataset_version}")
     manifest_dir = f"{dataset_dir}_{dataset_size}"
     prepare_common_voice(
         dataset_size,
@@ -102,7 +105,7 @@ def fine_tune_whisper(
     dataset = dataset.remove_columns(
         [
             "ID",
-            "accents",
+            #"accents",
             "age",
             "client_id",
             "down_votes",
@@ -331,10 +334,10 @@ if __name__ == "__main__":
         "-t", "--test_only", action="store_true",
     )
     parser.add_argument(
-        "-i",
+        "-d",
         "--dataset_dir",
         default=None,
-        help="path to the dataset directory",
+        help="path to Common Voice 10.0 dataset directory",
     )
     parser.add_argument(
         "-o",

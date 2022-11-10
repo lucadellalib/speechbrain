@@ -509,6 +509,7 @@ def preprocess_csv_file(
         header = next(csv_reader)
         # Rename "path" and "sentence" fields
         header[1], header[2] = "mp3", "wrd"
+        header.pop(-4)  # Remove accents column
         # Add "ID" field
         csv_writer.writerow(["ID"] + header)
         for i, row in enumerate(csv_reader):
@@ -585,6 +586,7 @@ def preprocess_csv_file(
                 continue
 
             row[1], row[2] = clip_file, sentence
+            row.pop(-4)  # Remove accents column
             num_clips += 1
             total_duration_s += float(row[-1])
             csv_writer.writerow([sentence_id] + row)
