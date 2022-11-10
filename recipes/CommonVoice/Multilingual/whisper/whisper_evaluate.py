@@ -56,8 +56,7 @@ def evaluate_whisper(dataset_size,locales):
         common_voice_data = common_voice_data.map(resolve_root_dir, num_proc=4)
         lan=None
         if f"<|{locale}|>"  in processor.tokenizer.additional_special_tokens:
-            lan=locale
-        model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language=lan, task = "transcribe")
+            model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language=locale, task = "transcribe")
         common_voice_data = common_voice_data.rename_columns({"mp3": "audio", "wrd": "sentence"})
         common_voice_data = common_voice_data.cast_column("audio", Audio(sampling_rate=16000))
         result = common_voice_data['test'].map(map_to_pred, remove_columns=common_voice_data['test'].column_names,num_proc=1)
