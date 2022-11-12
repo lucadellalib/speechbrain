@@ -37,6 +37,13 @@ from transformers import (
 from common_voice_prepare import prepare_common_voice
 
 
+__all__ = [
+    "fine_tune_whisper",
+]
+
+
+# Adapted from:
+# https://colab.research.google.com/github/sanchit-gandhi/notebooks/blob/main/fine_tune_whisper.ipynb
 def fine_tune_whisper(
     whisper_model: "str" = "openai/whisper-tiny",
     dataset_size: "str" = "small",
@@ -74,7 +81,9 @@ def fine_tune_whisper(
     """
     dataset_version = "10_0"
     if dataset_dir is None:
-        dataset_dir = os.path.join("..", "data", f"common_voice_{dataset_version}")
+        dataset_dir = os.path.join(
+            "..", "data", f"common_voice_{dataset_version}"
+        )
     manifest_dir = f"{dataset_dir}_{dataset_size}"
     prepare_common_voice(
         dataset_size,
@@ -105,7 +114,7 @@ def fine_tune_whisper(
     dataset = dataset.remove_columns(
         [
             "ID",
-            #"accents",
+            # "accents",
             "age",
             "client_id",
             "down_votes",
@@ -240,7 +249,7 @@ def fine_tune_whisper(
     training_args = Seq2SeqTrainingArguments(
         seed=seed,
         output_dir=output_dir,
-        per_device_train_batch_size=12,
+        per_device_train_batch_size=4,
         gradient_accumulation_steps=1,  # Increase by 2x for every 2x decrease in batch size
         learning_rate=1e-5,
         num_train_epochs=20,
@@ -249,7 +258,7 @@ def fine_tune_whisper(
         fp16=True,
         group_by_length=True,
         evaluation_strategy="epoch",
-        per_device_eval_batch_size=12,
+        per_device_eval_batch_size=4,
         predict_with_generate=True,
         generation_max_length=225,
         save_strategy="epoch",
@@ -340,10 +349,7 @@ if __name__ == "__main__":
         help="path to Common Voice 10.0 dataset directory",
     )
     parser.add_argument(
-        "-o",
-        "--output_dir",
-        default=None,
-        help="path to the output directory",
+        "-o", "--output_dir", default=None, help="path to the output directory",
     )
 
     args = parser.parse_args()
