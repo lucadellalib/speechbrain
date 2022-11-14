@@ -99,7 +99,7 @@ def fine_tune_whisper(
     
     if locales != None:
         tokenizer = WhisperTokenizer.from_pretrained(
-        whisper_model,language=locales, task="transcribe"
+        whisper_model,language=locales[0], task="transcribe"
     )
     else:
         tokenizer = WhisperTokenizer.from_pretrained(
