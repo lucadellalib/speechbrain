@@ -341,7 +341,7 @@ if __name__ == "__main__":
         "-l",
         "--locales",
         nargs="+",
-        default=['it'],
+        default=None,
         help="locales to include (e.g. 'en', 'it', etc.), default to all the locales in Common Voice 10.0",
     )
     parser.add_argument(
@@ -350,7 +350,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-d",
         "--dataset_dir",
-        default="data/common_voice_10_0",
+        default=None,
         help="path to Common Voice 10.0 dataset directory",
     )
     parser.add_argument(
