@@ -96,9 +96,15 @@ def fine_tune_whisper(
 
     # Build pipeline
     feature_extractor = WhisperFeatureExtractor.from_pretrained(whisper_model)
-    tokenizer = WhisperTokenizer.from_pretrained(
-        whisper_model, task="transcribe"
+    
+    if locales != None:
+        tokenizer = WhisperTokenizer.from_pretrained(
+        whisper_model,language=locales, task="transcribe"
     )
+    else:
+        tokenizer = WhisperTokenizer.from_pretrained(
+            whisper_model, task="transcribe"
+        )
     processor = WhisperProcessor.from_pretrained(
         whisper_model, task="transcribe"
     )
@@ -112,28 +118,53 @@ def fine_tune_whisper(
             "test": os.path.join(manifest_dir, "test.csv"),
         },
     )
-    dataset = dataset.remove_columns(
-        [
-            "ID",
-            # "accents",
-            "age",
-            "client_id",
-            "down_votes",
-            "duration",
-            "gender",
-            "locale",
-            "segment",
-            "up_votes",
-        ]
-    )
+    # dataset = dataset.remove_columns(
+    #     [
+    #         "ID",
+    #         # "accents",
+    #         "age",
+    #         "client_id",
+    #         "down_votes",
+    #         "duration",1
+    #         "gender",
+    #         "locale",
+    #         "segment",
+    #         "up_votes",
+    #     ]
+    # )
 
     def resolve_root_dir(sample: "Dict[str, Any]") -> "Dict[str, Any]":
         sample["mp3"] = sample["mp3"].replace("$root_dir", manifest_dir)
         return sample
 
+    def resolve_long_sequence(sample: "Dict[str, Any]") -> "Dict[str, Any]":
+        if sample['duration'] <10:
+            return sample
+        # sample["mp3"] = sample["mp3"].replace("$root_dir", manifest_dir)
+        # return sample
+
+    dataset = dataset.map(resolve_long_sequence, num_proc=4)
+
+    # dataset = dataset.remove_columns(
+    #     [
+    #         "ID",
+    #         # "accents",
+    #         "age",
+    #         "client_id",
+    #         "down_votes",
+    #         "duration",1
+    #         "gender",
+    #         "locale",
+    #         "segment",
+    #         "up_votes",
+    #     ]
+    # )
+
     dataset = dataset.map(resolve_root_dir, num_proc=4)
+
     dataset = dataset.rename_columns({"mp3": "audio", "wrd": "sentence"})
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16000))
+ 
 
     def prepare_dataset(sample: "Dict[str, Any]") -> "Dict[str, Any]":
         # Load and resample audio data from 48kHz to 16kHz
@@ -350,7 +381,7 @@ if __name__ == "__main__":
         "--locales",
         nargs="+",
         default=None,
-        help="locales to include (e.g. 'en', 'it', etc.), default to all the locales in Common Voice 10.0",
+         help="locales to include (e.g. 'en', 'it', etc.), default to all the locales in Common Voice 10.0",
     )
     parser.add_argument(
         "-t", "--test_only", action="store_true",
