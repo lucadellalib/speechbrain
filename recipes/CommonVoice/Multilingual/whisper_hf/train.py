@@ -51,6 +51,7 @@ def fine_tune_whisper(
     test_only: "bool" = False,
     dataset_dir: "Optional[str]" = None,
     output_dir: "Optional[str]" = None,
+    batch_size: "Optional[int]" = 4
 ) -> "None":
     """Fine-tune Whisper model on Common Voice dataset.
 
@@ -253,7 +254,7 @@ def fine_tune_whisper(
     training_args = Seq2SeqTrainingArguments(
         seed=seed,
         output_dir=output_dir,
-        per_device_train_batch_size=4,
+        per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=1,  # Increase by 2x for every 2x decrease in batch size
         learning_rate=1e-5,
         num_train_epochs=20,
@@ -262,7 +263,7 @@ def fine_tune_whisper(
         fp16=True,
         group_by_length=True,
         evaluation_strategy="epoch",
-        per_device_eval_batch_size=4,
+        per_device_eval_batch_size=batch_size,
         predict_with_generate=True,
         generation_max_length=225,
         save_strategy="epoch",
@@ -340,7 +341,7 @@ if __name__ == "__main__":
         "-l",
         "--locales",
         nargs="+",
-        default=None,
+        default=['it'],
         help="locales to include (e.g. 'en', 'it', etc.), default to all the locales in Common Voice 10.0",
     )
     parser.add_argument(
@@ -349,12 +350,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "-d",
         "--dataset_dir",
-        default=None,
+        default="data/common_voice_10_0",
         help="path to Common Voice 10.0 dataset directory",
     )
     parser.add_argument(
         "-o", "--output_dir", default=None, help="path to the output directory",
     )
+
+    parser.add_argument(
+        "--batch_size",
+        default=4,
+        type=int,
+        help="Batch Size",
+    )
+
 
     args = parser.parse_args()
     fine_tune_whisper(
@@ -364,4 +373,5 @@ if __name__ == "__main__":
         args.test_only,
         args.dataset_dir,
         args.output_dir,
+        args.batch_size,
     )
