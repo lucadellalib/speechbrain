@@ -337,6 +337,14 @@ if __name__ == "__main__":
         choices=["small", "medium", "large", "full"],
         help="dataset size",
     )
+
+    parser.add_argument(
+        "--batch_size",
+        default=4,
+        type=int,
+        help="Batch Size",
+    )
+
     parser.add_argument(
         "-l",
         "--locales",
@@ -357,12 +365,7 @@ if __name__ == "__main__":
         "-o", "--output_dir", default=None, help="path to the output directory",
     )
 
-    parser.add_argument(
-        "--batch_size",
-        default=4,
-        type=int,
-        help="Batch Size",
-    )
+
 
 
     args = parser.parse_args()
