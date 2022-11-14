@@ -235,6 +235,10 @@ def fine_tune_whisper(
     model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
 
+    
+    if locales != None:
+        model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language=locales[0], task = "transcribe")
+
     # Build trainer
     # https://github.com/huggingface/transformers/blob/e82c1cb78e178519060b9391214727be75a218ca/src/transformers/training_args.py#L121
     seed = 1234
