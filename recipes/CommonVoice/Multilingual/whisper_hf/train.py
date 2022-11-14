@@ -99,7 +99,7 @@ def fine_tune_whisper(
     
     if locales != None:
         tokenizer = WhisperTokenizer.from_pretrained(
-        whisper_model,language=locales[0], task="transcribe"
+        whisper_model,language='english',  task="transcribe"
     )
     else:
         tokenizer = WhisperTokenizer.from_pretrained(
@@ -110,6 +110,7 @@ def fine_tune_whisper(
     )
 
     # Build dataset
+
     dataset = load_dataset(
         "csv",
         data_files={
@@ -118,49 +119,27 @@ def fine_tune_whisper(
             "test": os.path.join(manifest_dir, "test.csv"),
         },
     )
-    # dataset = dataset.remove_columns(
-    #     [
-    #         "ID",
-    #         # "accents",
-    #         "age",
-    #         "client_id",
-    #         "down_votes",
-    #         "duration",1
-    #         "gender",
-    #         "locale",
-    #         "segment",
-    #         "up_votes",
-    #     ]
-    # )
+    dataset = dataset.remove_columns(
+        [
+            "ID",
+            # "accents",
+            "age",
+            "client_id",
+            "down_votes",
+            "duration",
+            "gender",
+            "locale",
+            "segment",
+            "up_votes",
+        ]
+    )
 
     def resolve_root_dir(sample: "Dict[str, Any]") -> "Dict[str, Any]":
         sample["mp3"] = sample["mp3"].replace("$root_dir", manifest_dir)
         return sample
 
-    def resolve_long_sequence(sample: "Dict[str, Any]") -> "Dict[str, Any]":
-        if sample['duration'] <10:
-            return sample
-        # sample["mp3"] = sample["mp3"].replace("$root_dir", manifest_dir)
-        # return sample
-
-    dataset = dataset.map(resolve_long_sequence, num_proc=4)
-
-    # dataset = dataset.remove_columns(
-    #     [
-    #         "ID",
-    #         # "accents",
-    #         "age",
-    #         "client_id",
-    #         "down_votes",
-    #         "duration",1
-    #         "gender",
-    #         "locale",
-    #         "segment",
-    #         "up_votes",
-    #     ]
-    # )
-
     dataset = dataset.map(resolve_root_dir, num_proc=4)
+
 
     dataset = dataset.rename_columns({"mp3": "audio", "wrd": "sentence"})
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16000))
