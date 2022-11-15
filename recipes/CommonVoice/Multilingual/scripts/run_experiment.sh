@@ -10,7 +10,7 @@ CONFIG=$3
 cd /workspace
 git clone https://github.com/lucadellalib/speechbrain.git
 cd speechbrain
-git checkout common-voice-multilingual
+git checkout -b common-voice-multilingual 51ec86b98ff94ccc74ee632f4ef30d80b4b21ea8
 cd recipes/CommonVoice/Multilingual
 conda env create -f environment.yaml
 source activate multilingual-env
