@@ -24,7 +24,7 @@ class CommonVoice(torch.utils.data.Dataset):
     A simple class to wrap LibriSpeech and trim/pad the audio to 30 seconds.
     It will drop the last few seconds of a very small portion of the utterances.
     """
-    def __init__(self, dataset_size,dataset_dir,locales, device=DEVICE):
+    def __init__(self, dataset_size,dataset_dir,locales,split="test", device=DEVICE):
         self.manifest_dir= f"{args.dataset_dir}_{args.dataset_size}"
         prepare_common_voice(
             dataset_size,
@@ -41,7 +41,7 @@ class CommonVoice(torch.utils.data.Dataset):
                 "test": os.path.join(self.manifest_dir, "test.csv"),
             },
          )
-        self.dataset = self.preprocess_dataset(ds)
+        self.dataset = self.preprocess_dataset(ds[split])
         self.device = device
     
     
@@ -72,14 +72,14 @@ class CommonVoice(torch.utils.data.Dataset):
         return len(self.dataset)
 
     def __getitem__(self, item):
-        audio =self.dataset[item]['audio']
+        audio = torch.from_numpy(self.dataset[item]['audio']['array'])
         text =self.dataset[item]['sentence']
-        audio = whisper.pad_or_trim(audio.flatten()).to(self.device)
+        audio = whisper.pad_or_trim(audio).to(self.device)
         mel = whisper.log_mel_spectrogram(audio)
         
         return (mel, text)
 
-def inference_whisper(dataset_size,dataset_dir,locales):
+def inference_whisper(dataset_size,dataset_dir,output_dir,locales):
     dataset = CommonVoice(dataset_size,dataset_dir,locales,)
     loader = torch.utils.data.DataLoader(dataset, batch_size=16)
     model = whisper.load_model(args.whisper_model)
@@ -88,10 +88,16 @@ def inference_whisper(dataset_size,dataset_dir,locales):
     f"and has {sum(np.prod(p.shape) for p in model.parameters()):,} parameters."
     )
         # predict without timestamps for short-form transcription
-    if locals != None:
-        options = whisper.DecodingOptions(language=locals[0], without_timestamps=True)
+    if locales != None :
+        if locales[0] in whisper.tokenizer.LANGUAGES.keys():
+            options = whisper.DecodingOptions(language=locales[0], without_timestamps=True)
+        else:
+            options = whisper.DecodingOptions(without_timestamps=True)
+            print(f"{locales[0]} is not among supported languages in whisper.")
+            
     else:
         options = whisper.DecodingOptions(without_timestamps=True)
+      
     
     hypotheses = []
     references = []
@@ -104,14 +110,26 @@ def inference_whisper(dataset_size,dataset_dir,locales):
     normalizer = EnglishTextNormalizer()
     
     data = pd.DataFrame(dict(hypothesis=hypotheses, reference=references))
+    
     data["hypothesis_clean"] = [normalizer(text) for text in data["hypothesis"]]
     data["reference_clean"] = [normalizer(text) for text in data["reference"]]
+    
+    test_cer= 100*cer(list(data["reference_clean"]), list(data["hypothesis_clean"]))
+    test_wer=100*wer(list(data["reference_clean"]), list(data["hypothesis_clean"]))
 
+    print(f"WER:", test_wer)
+    print(f"CER:",test_cer)
+    
+    lines = []
+    line = (
+        f"test CER: {test_cer:.2f}, test WER: {test_wer:.2f}"
+    )
+    lines.append(line)
 
+    # Write log file
+    with open(os.path.join(output_dir, "train_log.txt"), "w") as f:
+        f.write("\n".join(lines))
 
-    print(f"Error rates for language: {locales[0]}, size: {dataset_size} and whisper model: {args.whisper_model}")
-    print(f"WER:", wer(list(data["reference_clean"]), list(data["hypothesis_clean"])))
-    print(f"CER:", cer(list(data["reference_clean"]), list(data["hypothesis_clean"])))
 
 
 
@@ -131,20 +149,27 @@ if __name__ == "__main__":
         help="dataset size",
     )
     parser.add_argument(
-        "-i",
+        "-d",
         "--dataset_dir",
-        default="data/common_voice_10_0",
-        help="path to the dataset directory",
+        default=None,
+        help="path to Common Voice 10.0 dataset directory",
     )
+    parser.add_argument(
+        "-o", 
+        "--output_dir", 
+        default=None, help="path to the output directory",
+    )
+
     parser.add_argument(
         "-l",
         "--locales",
         nargs="+",
-        default=['rw'],
+        default=None,
         help="locales to include (e.g. 'en', 'it', etc.), default to all the locales in Common Voice 10.0",
     )
 
     args = parser.parse_args()
+    inference_whisper(args.dataset_size,args.dataset_dir,args.output_dir,args.locales)
     # load model and processor
     
     
