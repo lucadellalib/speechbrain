@@ -54,7 +54,7 @@ class CommonVoice(torch.utils.data.Dataset):
             "down_votes",
             "duration",
             "gender",
-            "locale",
+#             "locale",
             "segment",
             "up_votes",
         ]
@@ -74,10 +74,11 @@ class CommonVoice(torch.utils.data.Dataset):
     def __getitem__(self, item):
         audio = torch.from_numpy(self.dataset[item]['audio']['array'])
         text =self.dataset[item]['sentence']
+        locale =self.dataset[item]['locale']
         audio = whisper.pad_or_trim(audio).to(self.device)
         mel = whisper.log_mel_spectrogram(audio)
         
-        return (mel, text)
+        return (mel, text,locale)
 
 def inference_whisper(dataset_size,dataset_dir,output_dir,locales):
     dataset = CommonVoice(dataset_size,dataset_dir,locales,)
@@ -101,21 +102,25 @@ def inference_whisper(dataset_size,dataset_dir,output_dir,locales):
     
     hypotheses = []
     references = []
+    languages=[]
 
-    for mels, texts in tqdm(loader):
+    for mels, texts,locales in tqdm(loader):
         results = model.decode(mels, options)
         hypotheses.extend([result.text for result in results])
         references.extend(texts)
+        languages.extend(locales)
     
     normalizer = EnglishTextNormalizer()
     
-    data = pd.DataFrame(dict(hypothesis=hypotheses, reference=references))
+    data = pd.DataFrame(dict(hypothesis=hypotheses, reference=references,language=languages))
     
     data["hypothesis_clean"] = [normalizer(text) for text in data["hypothesis"]]
     data["reference_clean"] = [normalizer(text) for text in data["reference"]]
     
     test_cer= 100*cer(list(data["reference_clean"]), list(data["hypothesis_clean"]))
     test_wer=100*wer(list(data["reference_clean"]), list(data["hypothesis_clean"]))
+    
+    data.to_csv(os.path.join(output_dir, "test_result.csv"))
 
     print(f"WER:", test_wer)
     print(f"CER:",test_cer)
