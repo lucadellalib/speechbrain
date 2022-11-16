@@ -65,11 +65,11 @@ class CommonVoiceDataset(torch.utils.data.Dataset):
     A simple class to wrap commonVoice and trim/pad the audio to 30 seconds.
     It will drop the last few seconds of a very small portion of the utterances.
     """
-    def __init__(self, dataset_size,dataset_dir,manifests,tokenizer,split="test", device=DEVICE):
+    def __init__(self, dataset_size,dataset_dir,manifests,tokenizer, device=DEVICE):
         self.manifest_dir= f"{dataset_dir}_{dataset_size}"
         self.tokenizer = tokenizer
 
-        self.dataset = self.preprocess_dataset(manifests[split])
+        self.dataset = self.preprocess_dataset(manifests)
         self.device = device
     
     

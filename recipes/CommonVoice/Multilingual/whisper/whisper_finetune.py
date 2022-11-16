@@ -6,6 +6,8 @@ import string
 import argparse
 import logging
 from pathlib import Path
+import whisper
+
 # from infer import transcribe
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
@@ -128,41 +130,41 @@ def get_parser() -> argparse.Namespace:
     return args
 
 
-class CheckpointEveryNSteps(pl.Callback):
-    """
-    Save a checkpoint every N steps, instead of Lightning's default that checkpoints
-    based on validation loss.
-    """
+# class CheckpointEveryNSteps(pl.Callback):
+#     """
+#     Save a checkpoint every N steps, instead of Lightning's default that checkpoints
+#     based on validation loss.
+#     """
 
-    def __init__(
-            self,
-            save_step_frequency,
-            prefix="N-Step-Checkpoint",
-            use_modelcheckpoint_filename=False,
-    ):
-        """
-        Args:
-            save_step_frequency: how often to save in steps
-            prefix: add a prefix to the name, only used if
-                use_modelcheckpoint_filename=False
-            use_modelcheckpoint_filename: just use the ModelCheckpoint callback's
-                default filename, don't use ours.
-        """
-        self.save_step_frequency = save_step_frequency
-        self.prefix = prefix
-        self.use_modelcheckpoint_filename = use_modelcheckpoint_filename
+#     def __init__(
+#             self,
+#             save_step_frequency,
+#             prefix="N-Step-Checkpoint",
+#             use_modelcheckpoint_filename=False,
+#     ):
+#         """
+#         Args:
+#             save_step_frequency: how often to save in steps
+#             prefix: add a prefix to the name, only used if
+#                 use_modelcheckpoint_filename=False
+#             use_modelcheckpoint_filename: just use the ModelCheckpoint callback's
+#                 default filename, don't use ours.
+#         """
+#         self.save_step_frequency = save_step_frequency
+#         self.prefix = prefix
+#         self.use_modelcheckpoint_filename = use_modelcheckpoint_filename
 
-    def on_batch_end(self, trainer: pl.Trainer, _):
-        """ Check if we should save a checkpoint after every train batch """
-        epoch = trainer.current_epoch
-        global_step = trainer.global_step
-        if global_step % self.save_step_frequency == 0:
-            if self.use_modelcheckpoint_filename:
-                filename = trainer.checkpoint_callback.filename
-            else:
-                filename = f"{self.prefix}_{epoch=}_{global_step=}.ckpt"
-            ckpt_path = os.path.join(trainer.checkpoint_callback.dirpath, filename)
-            trainer.save_checkpoint(ckpt_path)
+#     def on_train_batch_end(self, trainer: pl.Trainer, _):
+#         """ Check if we should save a checkpoint after every train batch """
+#         epoch = trainer.current_epoch
+#         global_step = trainer.global_step
+#         if global_step % self.save_step_frequency == 0:
+#             if self.use_modelcheckpoint_filename:
+#                 filename = trainer.checkpoint_callback.filename
+#             else:
+#                 filename = f"{self.prefix}_{epoch=}_{global_step=}.ckpt"
+#             ckpt_path = os.path.join(trainer.checkpoint_callback.dirpath, filename)
+#             trainer.save_checkpoint(ckpt_path)
 
 
 def main():
@@ -170,16 +172,16 @@ def main():
     cfg = Config(**{k: v for k, v in list(vars(args).items()) if k in list(Config.__annotations__.keys())})
 
 
-    callback_list = [
-        ModelCheckpoint(
-            dirpath=os.path.join(Path(args.experiment_directory) / args.name, 'checkpoints'),
-            filename='checkpoint-{epoch:04d}',
-            monitor='val/loss',
-            save_top_k=args.save_top_k,
-        ),
-        LearningRateMonitor(logging_interval='epoch'),
-        CheckpointEveryNSteps(args.checkpoint_every_n_steps)
-    ]
+#     callback_list = [
+#         ModelCheckpoint(
+#             dirpath=os.path.join(Path(args.experiment_directory) / args.name, 'checkpoints'),
+#             filename='checkpoint-{epoch:04d}',
+#             monitor='val/loss',
+#             save_top_k=args.save_top_k,
+#         ),
+#         LearningRateMonitor(logging_interval='epoch'),
+#         CheckpointEveryNSteps(args.checkpoint_every_n_steps)
+#     ]
 
     manifests = load_manifests(args.dataset_size, args.dataset_dir,args.locales)
 
@@ -199,44 +201,51 @@ def main():
         gpus=args.gpus,
         max_epochs=cfg.num_train_epochs,
         accumulate_grad_batches=cfg.gradient_accumulation_steps,
-        callbacks=callback_list,
+#         callbacks=callback_list,
         # logger=train_logger,
         log_every_n_steps=args.log_every_n_steps
     )
 
     if args.do_train:
         trainer.fit(model)
-    # trainer.save(model.model, args.save_path)
+#     trainer.save_che(model.model, args.save_path)
 
-    # if args.do_test:
-    #     logger.info('Start testing...')
-    #     model.eval()
-    #     woptions = whisper.DecodingOptions(language=args.lang, without_timestamps=True)
-    #     wtokenizer = whisper.tokenizer.get_tokenizer(True, language=args.lang, task=woptions.task)
-    #     dataset = AlbaizynDataset(manifest=manifests['test'], tokenizer=wtokenizer)
-    #     loader = torch.utils.data.DataLoader(
-    #         dataset,
-    #         batch_size=args.test_batch_size,
-    #         collate_fn=WhisperDataCollatorWithPadding()
-    #     )
-    #     preds, metrics = transcribe(
-    #         loader,
-    #         model,
-    #         woptions,
-    #         wtokenizer,
-    #         with_references=args.test_manifest_with_references
-    #     )
+    if args.do_test:
+        logger.info('Start testing...')
+        model.eval()
+        if args.locales != None:
+            lang=args.locales[0]
+        woptions = whisper.DecodingOptions(language=lang, without_timestamps=True)
+        wtokenizer = whisper.tokenizer.get_tokenizer(True, language=lang, task=woptions.task)
+        dataset = CommonVoiceDataset(
+            dataset_size=args.dataset_size,
+            dataset_dir=args.dataset_dir,
+            manifests=manifests['test'],
+            tokenizer=wtokenizer,
+        )
+        loader = torch.utils.data.DataLoader(
+            dataset,
+            batch_size=args.test_batch_size,
+            collate_fn=WhisperDataCollatorWithPadding()
+        )
+        preds, metrics = transcribe(
+            loader,
+            model,
+            woptions,
+            wtokenizer,
+            with_references=args.test_manifest_with_references
+        )
 
-    #     if metrics:
-    #         logger.info(
-    #             'Testing done:\n' +
-    #             '\n'.join([f'{n}: mean {arr.mean():.4f} std {arr.std():.4f}' for n, arr in metrics.items()])
-    #         )
+        if metrics:
+            logger.info(
+                'Testing done:\n' +
+                '\n'.join([f'{n}: mean {arr.mean():.4f} std {arr.std():.4f}' for n, arr in metrics.items()])
+            )
 
-    #     logger.info(f'Writing results to {args.test_results_json_filepath}')
-    #     with open(args.test_results_json_filepath, 'w') as of:
-    #         for line in preds:
-    #             of.write(json.dumps(line) + '\n')
+        logger.info(f'Writing results to {args.test_results_json_filepath}')
+        with open(args.test_results_json_filepath, 'w') as of:
+            for line in preds:
+                of.write(json.dumps(line) + '\n')
 
 
 if __name__ == "__main__":

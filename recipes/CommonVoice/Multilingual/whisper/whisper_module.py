@@ -58,8 +58,8 @@ class WhisperModelModule(LightningModule):
         self.metrics_cer = cer
 
         self.cfg = cfg
-        # self.__train_dataset = train_dataset
-        # self.__dev_dataset = dev_dataset
+        self.__train_dataset = manifests['train']
+        self.__dev_dataset = manifests['dev']
         self.dataset_size=dataset_size
         self.dataset_dir=dataset_dir
         self.locales=locales
@@ -102,8 +102,8 @@ class WhisperModelModule(LightningModule):
             o = torch.argmax(o, dim=1)
             o_list.append(self.tokenizer.decode(o, skip_special_tokens=True))
             l_list.append(self.tokenizer.decode(l, skip_special_tokens=True))
-        cer = self.metrics_cer.compute(references=l_list, predictions=o_list) * 100
-        wer = self.metrics_wer.compute(references=l_list, predictions=o_list) * 100
+        cer = self.metrics_cer(l_list, o_list) * 100
+        wer = self.metrics_wer(l_list, o_list) * 100
 
         self.log('val/loss', loss, on_step=True, prog_bar=True, logger=True)
         self.log('val/cer', cer, on_step=True, prog_bar=True, logger=True)
@@ -157,9 +157,8 @@ class WhisperModelModule(LightningModule):
         dataset = CommonVoiceDataset(
             dataset_size=self.dataset_size,
             dataset_dir=self.dataset_dir,
-            manifests=self.manifests,
+            manifests=self.manifests['train'],
             tokenizer=self.tokenizer,
-            split="train"
         )
         return torch.utils.data.DataLoader(
             dataset,
@@ -174,9 +173,8 @@ class WhisperModelModule(LightningModule):
         dataset = CommonVoiceDataset(
             dataset_size=self.dataset_size,
             dataset_dir=self.dataset_dir,
-            manifests=self.manifests,
+            manifests=self.manifests['dev'],
             tokenizer=self.tokenizer,
-            split="dev"
         )
         return torch.utils.data.DataLoader(
             dataset,
