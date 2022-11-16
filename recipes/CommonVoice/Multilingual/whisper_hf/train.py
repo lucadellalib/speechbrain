@@ -84,6 +84,9 @@ def fine_tune_whisper(
     prepare_common_voice_kwargs = prepare_common_voice_kwargs or {}
     training_kwargs = training_kwargs or {}
 
+    # FIXME:
+    prepare_common_voice_kwargs["manifest_dir"] = f"../data/common_voice_10_0_{dataset_size}"
+
     # Prepare data
     prepare_common_voice(dataset_size, **prepare_common_voice_kwargs)
 
