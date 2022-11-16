@@ -97,7 +97,7 @@ def fine_tune_whisper(
     locales = prepare_common_voice_kwargs.get("locales", [])
 
     # Build pipeline
-    language = LANGUAGES[locales[0] if len(locales) == 1 else None]
+    language = LANGUAGES[locales[0]] if len(locales) == 1 else None
     feature_extractor = WhisperFeatureExtractor.from_pretrained(whisper_model)
     tokenizer = WhisperTokenizer.from_pretrained(
         whisper_model, language=language, task="transcribe",
