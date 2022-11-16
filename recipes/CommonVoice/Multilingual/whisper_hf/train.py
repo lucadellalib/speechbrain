@@ -34,6 +34,7 @@ from transformers import (
     WhisperProcessor,
     WhisperTokenizer,
 )
+from transformers.models.whisper.english_normalizer import EnglishTextNormalizer
 from transformers.models.whisper.tokenization_whisper import LANGUAGES
 
 from common_voice_prepare import prepare_common_voice
@@ -210,6 +211,11 @@ def fine_tune_whisper(
     cer_metric = evaluate.load("cer")
     wer_metric = evaluate.load("wer")
 
+    # Build normalizer
+    with open(os.path.join(os.path.dirname(__file__), "english.json")) as f:
+        english_spelling_mapping = json.load(f)
+    normalizer = EnglishTextNormalizer(english_spelling_mapping)
+
     def compute_metrics(pred: "EvalPrediction") -> "Dict[str, float]":
         pred_ids = pred.predictions
         label_ids = pred.label_ids
@@ -221,9 +227,13 @@ def fine_tune_whisper(
         pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
         label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
 
-        # To lower case
-        pred_str = [s.lower() for s in pred_str]
-        label_str = [s.lower() for s in label_str]
+        # Normalize
+        pred_str = [normalizer(s) for s in pred_str]
+        label_str = [normalizer(s) for s in label_str]
+
+        print("Example transcription/label:")
+        print(pred_str[0])
+        print(label_str[0])
 
         cer = 100 * cer_metric.compute(
             predictions=pred_str, references=label_str
@@ -247,7 +257,7 @@ def fine_tune_whisper(
         "output_dir",
         os.path.join(
             "results",
-            "multilingual" if locales else "_".join(locales),
+            "multilingual" if not locales else "_".join(locales),
             dataset_size,
             os.path.basename(whisper_model),
             str(training_kwargs["seed"]),
@@ -307,6 +317,12 @@ def fine_tune_whisper(
                     f"valid CER: {valid_cer:.2f}, valid WER: {valid_wer:.2f}"
                 )
                 lines.append(line)
+
+    # If single language, set it in the decoder before testing
+    if len(locales) == 1:
+        model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(
+            language=locales[0], task="transcribe"
+        )
 
     # Test
     test_metrics = trainer.evaluate(dataset["test"])
