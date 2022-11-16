@@ -6,8 +6,8 @@
 
 SIZE=small
 MODEL=whisper_hf
-VARIANT=whisper-medium
-TAG=medium
+VARIANT=whisper-large
+TAG=large
 CONFIG="$SIZE -m openai/${VARIANT} -t -p '{\"manifest_dir\": \"../data/common_voice_10_0_${SIZE}\"}' -c '{\"output_dir\": \"results/multilingual/${SIZE}/${VARIANT}/1234\"}'"
 
 ovhai job run ovhcom/ai-training-pytorch:latest \
@@ -16,5 +16,5 @@ ovhai job run ovhcom/ai-training-pytorch:latest \
     --gpu 1 \
     --volume common_voice_10_0_${SIZE}@BHS/:/workspace/common_voice_10_0_${SIZE}/:RO \
     --volume common_voice_10_0_scripts@BHS/:/workspace/common_voice_10_0_scripts/:RW \
-    --volume common_voice_10_0_${SIZE}_output@BHS/:/workspace/common_voice_10_0_${SIZE}_output/:RW
-    #-- bash -c "chmod u+x /workspace/common_voice_10_0_scripts/run_experiment.sh && /workspace/common_voice_10_0_scripts/run_experiment.sh ${SIZE} ${MODEL} \"${CONFIG}\""
+    --volume common_voice_10_0_${SIZE}_output@BHS/:/workspace/common_voice_10_0_${SIZE}_output/:RW \
+    -- bash -c "chmod u+x /workspace/common_voice_10_0_scripts/run_experiment.sh && /workspace/common_voice_10_0_scripts/run_experiment.sh ${SIZE} ${MODEL} \"${CONFIG}\""

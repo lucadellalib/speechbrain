@@ -366,14 +366,14 @@ if __name__ == "__main__":
         "-p",
         "--prepare_common_voice_kwargs",
         default="{}",
-        type=json.loads,
+        type=lambda x: json.loads(x.replace("'", '"')),
         help="`prepare_common_voice` keyword arguments in JSON format (see common_voice_prepare.py)",
     )
     parser.add_argument(
         "-c",
         "--training_kwargs",
         default="{}",
-        type=json.loads,
+        type=lambda x: json.loads(x.replace("'", '"')),
         help=(
             "training keyword arguments in JSON format "
             "(see https://github.com/huggingface/transformers/blob/e82c1cb78e178519060b9391214727be75a218ca/src/transformers/training_args.py#L121)"
