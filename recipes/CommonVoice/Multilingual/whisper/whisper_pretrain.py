@@ -21,7 +21,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 class CommonVoice(torch.utils.data.Dataset):
     """
-    A simple class to wrap LibriSpeech and trim/pad the audio to 30 seconds.
+    A simple class to wrap commonVoice and trim/pad the audio to 30 seconds.
     It will drop the last few seconds of a very small portion of the utterances.
     """
     def __init__(self, dataset_size,dataset_dir,locales,split="test", device=DEVICE):

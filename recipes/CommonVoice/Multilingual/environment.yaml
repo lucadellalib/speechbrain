@@ -107,6 +107,7 @@ dependencies:
     - torchvision==0.12.0
     - tqdm==4.64.1
     - git+https://github.com/huggingface/transformers.git@6cc06d17394f5715cdf2d13a1ef7680bedaee9e2
+    - git+https://github.com/openai/whisper.git
     - typed-ast==1.5.4
     - typing-extensions==4.3.0
     - urllib3==1.26.12
