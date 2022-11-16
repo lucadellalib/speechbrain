@@ -17,9 +17,10 @@
 # ==============================================================================
 
 import argparse
+import json
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Union
 
 import evaluate
 from datasets import Audio, load_dataset
@@ -33,6 +34,7 @@ from transformers import (
     WhisperProcessor,
     WhisperTokenizer,
 )
+from transformers.models.whisper.tokenization_whisper import LANGUAGES
 
 from common_voice_prepare import prepare_common_voice
 
@@ -45,72 +47,66 @@ __all__ = [
 # Adapted from:
 # https://colab.research.google.com/github/sanchit-gandhi/notebooks/blob/main/fine_tune_whisper.ipynb
 def fine_tune_whisper(
+    dataset_size: "str",
     whisper_model: "str" = "openai/whisper-tiny",
-    dataset_size: "str" = "small",
-    locales: "Optional[Sequence[str]]" = None,
     test_only: "bool" = False,
-    dataset_dir: "Optional[str]" = None,
-    output_dir: "Optional[str]" = None,
-    batch_size: "Optional[int]" = 4
+    prepare_common_voice_kwargs: "Dict[str, Any]" = None,
+    training_kwargs: "Dict[str, Any]" = None,
 ) -> "None":
     """Fine-tune Whisper model on Common Voice dataset.
 
     Parameters
     ----------
-    whisper_model:
-        The path to a directory containing the Whisper model checkpoint.
     dataset_size:
         The Common Voice dataset size. Must be one of the following:
         - "small":   1h train, 15 min dev, 15 min test;
         - "medium": 10h train, 15 min dev, 15 min test;
         - "large": full train, 15 min dev, 15 min test;
         - "full":  full train,   full dev,   full test.
-    locales:
-        The locales to include (e.g. "en", "it", etc.).
-        Default to all the locales in the given version of Common Voice.
+    whisper_model:
+        The path to a directory containing the Whisper
+        model checkpoint.
     test_only:
         True to skip fine-tuning, False otherwise.
-    dataset_dir:
-        The path to the dataset directory.
-    output_dir:
-        The path to the output directory.
+    prepare_common_voice_kwargs:
+        The keyword arguments to pass to `prepare_common_voice`
+        (see common_voice_prepare.py).
+    training_kwargs:
+        The keyword arguments to pass to `Seq2SeqTrainingArguments`
+        (see https://github.com/huggingface/transformers/blob/e82c1cb78e178519060b9391214727be75a218ca/src/transformers/training_args.py#L121).
 
     Examples
     --------
-    >>> fine_tune_whisper("openai/whisper-tiny", "small")
+    >>> fine_tune_whisper("small", whisper_model="openai/whisper-tiny")
 
     """
-    dataset_version = "10_0"
-    if dataset_dir is None:
-        dataset_dir = os.path.join(
-            "..", "data", f"common_voice_{dataset_version}"
-        )
-    manifest_dir = f"{dataset_dir}_{dataset_size}"
-    prepare_common_voice(
-        dataset_size,
-        dataset_version,
-        dataset_dir,
-        manifest_dir,
-        locales=locales,
+    prepare_common_voice_kwargs = prepare_common_voice_kwargs or {}
+    training_kwargs = training_kwargs or {}
+
+    # Prepare data
+    prepare_common_voice(dataset_size, **prepare_common_voice_kwargs)
+
+    # Set default values as in `prepare_common_voice`
+    dataset_version = prepare_common_voice_kwargs.get("dataset_version", "10_0")
+    dataset_dir = prepare_common_voice_kwargs.get(
+        "dataset_dir", os.path.join("data", f"common_voice_{dataset_version}")
     )
+    manifest_dir = prepare_common_voice_kwargs.get(
+        "manifest_dir", f"{dataset_dir}_{dataset_size}"
+    )
+    locales = prepare_common_voice_kwargs.get("locales", [])
 
     # Build pipeline
+    language = LANGUAGES[locales[0] if len(locales) == 1 else None]
     feature_extractor = WhisperFeatureExtractor.from_pretrained(whisper_model)
-    
-    if locales != None:
-        tokenizer = WhisperTokenizer.from_pretrained(
-        whisper_model,language='english',  task="transcribe"
+    tokenizer = WhisperTokenizer.from_pretrained(
+        whisper_model, language=language, task="transcribe",
     )
-    else:
-        tokenizer = WhisperTokenizer.from_pretrained(
-            whisper_model, task="transcribe"
-        )
     processor = WhisperProcessor.from_pretrained(
-        whisper_model, task="transcribe"
+        whisper_model, language=language, task="transcribe"
     )
 
     # Build dataset
-
     dataset = load_dataset(
         "csv",
         data_files={
@@ -138,12 +134,9 @@ def fine_tune_whisper(
         sample["mp3"] = sample["mp3"].replace("$root_dir", manifest_dir)
         return sample
 
-    dataset = dataset.map(resolve_root_dir, num_proc=4)
-
-
+    dataset = dataset.map(resolve_root_dir, num_proc=8)
     dataset = dataset.rename_columns({"mp3": "audio", "wrd": "sentence"})
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16000))
- 
 
     def prepare_dataset(sample: "Dict[str, Any]") -> "Dict[str, Any]":
         # Load and resample audio data from 48kHz to 16kHz
@@ -161,7 +154,7 @@ def fine_tune_whisper(
     dataset = dataset.map(
         prepare_dataset,
         remove_columns=dataset.column_names["train"],
-        num_proc=4,
+        num_proc=8,
     )
 
     # Build data collator
@@ -243,47 +236,45 @@ def fine_tune_whisper(
 
     # Build model
     model = WhisperForConditionalGeneration.from_pretrained(whisper_model)
+
+    # No tokens are forced as decoder outputs, no tokens are suppressed during generation
     model.config.forced_decoder_ids = None
     model.config.suppress_tokens = []
 
-    
-    if locales != None:
-        model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language=locales[0], task = "transcribe")
-
-    # Build trainer
-    # https://github.com/huggingface/transformers/blob/e82c1cb78e178519060b9391214727be75a218ca/src/transformers/training_args.py#L121
-    seed = 1234
-    if output_dir is None:
-        output_dir = os.path.join(
+    # Set default training arguments
+    training_kwargs.setdefault("seed", 1234)
+    training_kwargs.setdefault(
+        "output_dir",
+        os.path.join(
             "results",
-            "multilingual" if locales is None else "_".join(locales),
+            "multilingual" if locales else "_".join(locales),
             dataset_size,
             os.path.basename(whisper_model),
-            str(seed),
-        )
-    training_args = Seq2SeqTrainingArguments(
-        seed=seed,
-        output_dir=output_dir,
-        per_device_train_batch_size=batch_size,
-        gradient_accumulation_steps=1,  # Increase by 2x for every 2x decrease in batch size
-        learning_rate=1e-5,
-        num_train_epochs=20,
-        gradient_checkpointing=False,
-        dataloader_num_workers=4,
-        fp16=True,
-        group_by_length=True,
-        evaluation_strategy="epoch",
-        per_device_eval_batch_size=batch_size,
-        predict_with_generate=True,
-        generation_max_length=225,
-        save_strategy="epoch",
-        logging_strategy="epoch",
-        report_to=["tensorboard"],
-        load_best_model_at_end=True,
-        metric_for_best_model="loss",
-        greater_is_better=False,
-        push_to_hub=False,
+            str(training_kwargs["seed"]),
+        ),
     )
+    training_kwargs.setdefault("per_device_train_batch_size", 2)
+    training_kwargs.setdefault("gradient_accumulation_steps", 8)
+    training_kwargs.setdefault("learning_rate", 1e-4)
+    training_kwargs.setdefault("num_train_epochs", 20)
+    training_kwargs.setdefault("gradient_checkpointing", False)
+    training_kwargs.setdefault("dataloader_num_workers", 4)
+    training_kwargs.setdefault("fp16", True)
+    training_kwargs.setdefault("group_by_length", True)
+    training_kwargs.setdefault("evaluation_strategy", "epoch")
+    training_kwargs.setdefault("per_device_eval_batch_size", 2)
+    training_kwargs.setdefault("predict_with_generate", True)
+    training_kwargs.setdefault("generation_max_length", 225)
+    training_kwargs.setdefault("save_strategy", "epoch")
+    training_kwargs.setdefault("logging_strategy", "epoch")
+    training_kwargs.setdefault("report_to", ["tensorboard"])
+    training_kwargs.setdefault("load_best_model_at_end", True)
+    training_kwargs.setdefault("metric_for_best_model", "loss")
+    training_kwargs.setdefault("greater_is_better", False)
+    training_kwargs.setdefault("push_to_hub", False)
+    training_args = Seq2SeqTrainingArguments(**training_kwargs)
+
+    # Build trainer
     trainer = Seq2SeqTrainer(
         args=training_args,
         model=model,
@@ -300,7 +291,7 @@ def fine_tune_whisper(
     if not test_only:
         trainer.train()
 
-        # Write log file
+        # Write training log in SpeechBrain format
         log_history = trainer.state.log_history
         for i, metrics in enumerate(log_history):
             if "eval_loss" in metrics:
@@ -330,8 +321,12 @@ def fine_tune_whisper(
     lines.append(line)
 
     # Write log file
-    with open(os.path.join(output_dir, "train_log.txt"), "w") as f:
-        f.write("\n".join(lines))
+    with open(
+        os.path.join(training_kwargs["output_dir"], "train_log.txt"), "w"
+    ) as f:
+        content = "\n".join(lines)
+        f.write(content)
+        print(content)
 
 
 if __name__ == "__main__":
@@ -339,52 +334,41 @@ if __name__ == "__main__":
         description="Fine-tune Whisper on Common Voice 10.0"
     )
     parser.add_argument(
-        "whisper_model",
-        help="path to a directory containing the Whisper model checkpoint",
-    )
-    parser.add_argument(
         "dataset_size",
         choices=["small", "medium", "large", "full"],
         help="dataset size",
     )
-
     parser.add_argument(
-        "--batch_size",
-        default=4,
-        type=int,
-        help="Batch Size",
-    )
-
-    parser.add_argument(
-        "-l",
-        "--locales",
-        nargs="+",
-        default=None,
-         help="locales to include (e.g. 'en', 'it', etc.), default to all the locales in Common Voice 10.0",
+        "-m",
+        "--whisper_model",
+        help="path to a directory containing the Whisper model checkpoint",
     )
     parser.add_argument(
-        "-t", "--test_only", action="store_true",
+        "-t", "--test_only", action="store_true", help="skip fine-tuning"
     )
     parser.add_argument(
-        "-d",
-        "--dataset_dir",
-        default=None,
-        help="path to Common Voice 10.0 dataset directory",
+        "-p",
+        "--prepare_common_voice_kwargs",
+        default="{}",
+        type=json.loads,
+        help="`prepare_common_voice` keyword arguments in JSON format (see common_voice_prepare.py)",
     )
     parser.add_argument(
-        "-o", "--output_dir", default=None, help="path to the output directory",
+        "-c",
+        "--training_kwargs",
+        default="{}",
+        type=json.loads,
+        help=(
+            "training keyword arguments in JSON format "
+            "(see https://github.com/huggingface/transformers/blob/e82c1cb78e178519060b9391214727be75a218ca/src/transformers/training_args.py#L121)"
+        ),
     )
-
-
-
 
     args = parser.parse_args()
     fine_tune_whisper(
-        args.whisper_model,
         args.dataset_size,
-        args.locales,
+        args.whisper_model,
         args.test_only,
-        args.dataset_dir,
-        args.output_dir,
-        args.batch_size,
+        args.prepare_common_voice_kwargs,
+        args.training_kwargs,
     )

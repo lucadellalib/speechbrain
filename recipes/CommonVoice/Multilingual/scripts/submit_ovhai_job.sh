@@ -6,11 +6,12 @@
 
 SIZE=small
 MODEL=whisper_hf
-VARIANT=medium_ft
-CONFIG="openai/whisper-medium $SIZE -o results/multilingual/small/whisper-medium-ft/1234"
+VARIANT=whisper-medium
+TAG=medium_ft
+CONFIG="$SIZE -m openai/${VARIANT} -p '{\"manifest_dir\": \"../data/common_voice_10_0_${SIZE}\"}' -c '{\"output_dir\": \"results/multilingual/${SIZE}/${VARIANT}-ft/1234\"}'"
 
 ovhai job run ovhcom/ai-training-pytorch:latest \
-    --name common_voice_10_0_${SIZE}_${MODEL}_${VARIANT} \
+    --name common_voice_10_0_${SIZE}_${MODEL}_${TAG} \
     --flavor ai1-1-gpu \
     --gpu 1 \
     --volume common_voice_10_0_${SIZE}@BHS/:/workspace/common_voice_10_0_${SIZE}/:RO \
