@@ -262,7 +262,7 @@ def fine_tune_whisper(
             "results",
             "multilingual" if not locales else "_".join(locales),
             dataset_size,
-            os.path.basename(whisper_model),
+            os.path.basename(whisper_model) + ("-ft" if not test_only else ""),
             str(training_kwargs["seed"]),
         ),
     )
