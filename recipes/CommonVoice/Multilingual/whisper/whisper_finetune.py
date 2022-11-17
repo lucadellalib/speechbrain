@@ -7,6 +7,8 @@ import argparse
 import logging
 from pathlib import Path
 import whisper
+from infer import transcribe
+
 
 # from infer import transcribe
 import pytorch_lightning as pl
@@ -130,41 +132,41 @@ def get_parser() -> argparse.Namespace:
     return args
 
 
-# class CheckpointEveryNSteps(pl.Callback):
-#     """
-#     Save a checkpoint every N steps, instead of Lightning's default that checkpoints
-#     based on validation loss.
-#     """
+class CheckpointEveryNSteps(pl.Callback):
+    """
+    Save a checkpoint every N steps, instead of Lightning's default that checkpoints
+    based on validation loss.
+    """
 
-#     def __init__(
-#             self,
-#             save_step_frequency,
-#             prefix="N-Step-Checkpoint",
-#             use_modelcheckpoint_filename=False,
-#     ):
-#         """
-#         Args:
-#             save_step_frequency: how often to save in steps
-#             prefix: add a prefix to the name, only used if
-#                 use_modelcheckpoint_filename=False
-#             use_modelcheckpoint_filename: just use the ModelCheckpoint callback's
-#                 default filename, don't use ours.
-#         """
-#         self.save_step_frequency = save_step_frequency
-#         self.prefix = prefix
-#         self.use_modelcheckpoint_filename = use_modelcheckpoint_filename
+    def __init__(
+            self,
+            save_step_frequency,
+            prefix="N-Step-Checkpoint",
+            use_modelcheckpoint_filename=False,
+    ):
+        """
+        Args:
+            save_step_frequency: how often to save in steps
+            prefix: add a prefix to the name, only used if
+                use_modelcheckpoint_filename=False
+            use_modelcheckpoint_filename: just use the ModelCheckpoint callback's
+                default filename, don't use ours.
+        """
+        self.save_step_frequency = save_step_frequency
+        self.prefix = prefix
+        self.use_modelcheckpoint_filename = use_modelcheckpoint_filename
 
-#     def on_train_batch_end(self, trainer: pl.Trainer, _):
-#         """ Check if we should save a checkpoint after every train batch """
-#         epoch = trainer.current_epoch
-#         global_step = trainer.global_step
-#         if global_step % self.save_step_frequency == 0:
-#             if self.use_modelcheckpoint_filename:
-#                 filename = trainer.checkpoint_callback.filename
-#             else:
-#                 filename = f"{self.prefix}_{epoch=}_{global_step=}.ckpt"
-#             ckpt_path = os.path.join(trainer.checkpoint_callback.dirpath, filename)
-#             trainer.save_checkpoint(ckpt_path)
+    def on_train_batch_end(self, trainer: pl.Trainer, _):
+        """ Check if we should save a checkpoint after every train batch """
+        epoch = trainer.current_epoch
+        global_step = trainer.global_step
+        if global_step % self.save_step_frequency == 0:
+            if self.use_modelcheckpoint_filename:
+                filename = trainer.checkpoint_callback.filename
+            else:
+                filename = f"{self.prefix}_{epoch=}_{global_step=}.ckpt"
+            ckpt_path = os.path.join(trainer.checkpoint_callback.dirpath, filename)
+            trainer.save_checkpoint(ckpt_path)
 
 
 def main():
@@ -172,18 +174,31 @@ def main():
     cfg = Config(**{k: v for k, v in list(vars(args).items()) if k in list(Config.__annotations__.keys())})
 
 
-#     callback_list = [
-#         ModelCheckpoint(
-#             dirpath=os.path.join(Path(args.experiment_directory) / args.name, 'checkpoints'),
-#             filename='checkpoint-{epoch:04d}',
-#             monitor='val/loss',
-#             save_top_k=args.save_top_k,
-#         ),
-#         LearningRateMonitor(logging_interval='epoch'),
-#         CheckpointEveryNSteps(args.checkpoint_every_n_steps)
-#     ]
+    callback_list = [
+        ModelCheckpoint(
+            dirpath=os.path.join(Path(args.experiment_directory) / args.name, 'checkpoints'),
+            filename='checkpoint-{epoch:04d}',
+            monitor='val/loss',
+            save_top_k=args.save_top_k,
+        ),
+        LearningRateMonitor(logging_interval='epoch'),
+        CheckpointEveryNSteps(args.checkpoint_every_n_steps)
+    ]
 
     manifests = load_manifests(args.dataset_size, args.dataset_dir,args.locales)
+
+        # set up training
+    train_logger = (
+        WandbLogger(
+            offline=not args.online,
+            name=args.name,
+            project=args.wandb_project,
+            save_dir=args.base_dir / 'logging',
+            entity=args.wandb_entity,
+        )
+        if args.wandb
+        else None
+    )
 
 
     model = WhisperModelModule(
@@ -201,8 +216,8 @@ def main():
         gpus=args.gpus,
         max_epochs=cfg.num_train_epochs,
         accumulate_grad_batches=cfg.gradient_accumulation_steps,
-#         callbacks=callback_list,
-        # logger=train_logger,
+        callbacks=callback_list,
+        logger=train_logger,
         log_every_n_steps=args.log_every_n_steps
     )
 
