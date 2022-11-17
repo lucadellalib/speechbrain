@@ -40,6 +40,7 @@ def transcribe(
     with torch.inference_mode():
         preds = []
         refs = []
+        whisper_model.model.cuda()
         for b in tqdm(loader):
             input_ids = b['input_ids'].half().cuda()
             audio_filepaths = b['audio_filepaths']

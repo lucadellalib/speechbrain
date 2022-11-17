@@ -43,7 +43,7 @@ def get_parser() -> argparse.Namespace:
 
     parser.add_argument('--name', required=False, type=str, default=get_name(), help='Name of an experiment')
 
-    # parser.add_argument('--base_dir', required=True, type=str, help='Base working directory')
+    parser.add_argument('--base_dir', required=True, type=str, help='Base working directory')
     # parser.add_argument(
     #     '--manifest_dir',
     #     required=False,
@@ -156,7 +156,7 @@ class CheckpointEveryNSteps(pl.Callback):
         self.prefix = prefix
         self.use_modelcheckpoint_filename = use_modelcheckpoint_filename
 
-    def on_train_batch_end(self, trainer: pl.Trainer, _):
+    def on_train_batch_end(self, trainer,rainer, pl_module, batch, batch_idx):
         """ Check if we should save a checkpoint after every train batch """
         epoch = trainer.current_epoch
         global_step = trainer.global_step
@@ -181,24 +181,24 @@ def main():
             monitor='val/loss',
             save_top_k=args.save_top_k,
         ),
-        LearningRateMonitor(logging_interval='epoch'),
+#         LearningRateMonitor(logging_interval='epoch'),
         CheckpointEveryNSteps(args.checkpoint_every_n_steps)
     ]
 
     manifests = load_manifests(args.dataset_size, args.dataset_dir,args.locales)
 
         # set up training
-    train_logger = (
-        WandbLogger(
-            offline=not args.online,
-            name=args.name,
-            project=args.wandb_project,
-            save_dir=args.base_dir / 'logging',
-            entity=args.wandb_entity,
-        )
-        if args.wandb
-        else None
-    )
+#     train_logger = (
+#         WandbLogger(
+#             offline=not args.online,
+#             name=args.name,
+#             project=args.wandb_project,
+#             save_dir=Path(args.base_dir) / 'logging',
+#             entity=args.wandb_entity,
+#         )
+#         if args.wandb
+#         else None
+#     )
 
 
     model = WhisperModelModule(
@@ -217,7 +217,7 @@ def main():
         max_epochs=cfg.num_train_epochs,
         accumulate_grad_batches=cfg.gradient_accumulation_steps,
         callbacks=callback_list,
-        logger=train_logger,
+#         logger=train_logger,
         log_every_n_steps=args.log_every_n_steps
     )
 

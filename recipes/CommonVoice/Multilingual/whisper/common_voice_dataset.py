@@ -26,8 +26,6 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
 __all__ = [
     "CommonVoice","WhisperDataCollatorWithPadding"
 ]
@@ -49,6 +47,8 @@ def load_manifests(dataset_size,dataset_dir,locales):
                 "test": os.path.join(manifest_dir, "test.csv"),
             },
          )
+    manifests =manifests.filter(lambda audio: audio['duration']<10)
+
     return manifests
     
 
@@ -65,12 +65,12 @@ class CommonVoiceDataset(torch.utils.data.Dataset):
     A simple class to wrap commonVoice and trim/pad the audio to 30 seconds.
     It will drop the last few seconds of a very small portion of the utterances.
     """
-    def __init__(self, dataset_size,dataset_dir,manifests,tokenizer, device=DEVICE):
+    def __init__(self, dataset_size,dataset_dir,manifests,tokenizer):
         self.manifest_dir= f"{dataset_dir}_{dataset_size}"
         self.tokenizer = tokenizer
 
         self.dataset = self.preprocess_dataset(manifests)
-        self.device = device
+       
     
     
     def preprocess_dataset(self,dataset):
