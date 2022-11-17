@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from whisper_module import WhisperModelModule, Config
 from common_voice_dataset import CommonVoiceDataset, load_manifests, WhisperDataCollatorWithPadding
-
+from whisper.normalizers import EnglishTextNormalizer
 
 def transcribe(
         loader: torch.utils.data.DataLoader,
@@ -36,6 +36,8 @@ def transcribe(
         return text
 
     t_wer, t_cer = [], []
+    normalizer = EnglishTextNormalizer()
+
 
     with torch.inference_mode():
         preds = []
@@ -59,6 +61,8 @@ def transcribe(
                     label[label == -100] = wtokenizer.eot
                     ref = wtokenizer.decode(label, skip_special_tokens=True)
                     refs.append({'text': ref})
+                    
+
 
         if not with_references:
             return preds, None
@@ -66,12 +70,12 @@ def transcribe(
             results = []
             for pred, ref in zip(preds, refs):
                 wer = whisper_model.metrics_wer(
-                    references=[ref['text'], ],
-                    predictions=[pred['pred_text'], ]
+                    [normalizer(ref['text']), ],
+                    [normalizer(pred['pred_text']), ]
                 ) * 100
                 cer = whisper_model.metrics_cer(
-                    references=[ref['text'], ],
-                    predictions=[pred['pred_text'], ]
+                    [normalizer(ref['text']), ],
+                    [normalizer(pred['pred_text']), ]
                 ) * 100
                 t_wer.append(wer)
                 t_cer.append(cer)

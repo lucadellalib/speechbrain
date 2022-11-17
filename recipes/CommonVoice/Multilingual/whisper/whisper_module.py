@@ -63,7 +63,6 @@ class WhisperModelModule(LightningModule):
         self.dataset_size=dataset_size
         self.dataset_dir=dataset_dir
         self.locales=locales
-        # self.manifests=manifests
    
 
     def forward(self, x):
