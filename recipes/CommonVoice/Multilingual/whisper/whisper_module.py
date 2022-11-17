@@ -63,7 +63,7 @@ class WhisperModelModule(LightningModule):
         self.dataset_size=dataset_size
         self.dataset_dir=dataset_dir
         self.locales=locales
-        self.manifests=manifests
+        # self.manifests=manifests
    
 
     def forward(self, x):
@@ -157,7 +157,7 @@ class WhisperModelModule(LightningModule):
         dataset = CommonVoiceDataset(
             dataset_size=self.dataset_size,
             dataset_dir=self.dataset_dir,
-            manifests=self.manifests['train'],
+            manifests=self.__train_dataset,
             tokenizer=self.tokenizer,
         )
         return torch.utils.data.DataLoader(
@@ -173,7 +173,7 @@ class WhisperModelModule(LightningModule):
         dataset = CommonVoiceDataset(
             dataset_size=self.dataset_size,
             dataset_dir=self.dataset_dir,
-            manifests=self.manifests['dev'],
+            manifests=self.__dev_dataset,
             tokenizer=self.tokenizer,
         )
         return torch.utils.data.DataLoader(
