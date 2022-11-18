@@ -7,8 +7,10 @@
 SIZE=small
 MODEL=whisper_hf
 VARIANT=whisper-large
-TAG=large
-CONFIG="$SIZE -m openai/${VARIANT} -t -p '{\"manifest_dir\": \"../data/common_voice_10_0_${SIZE}\"}' -c '{\"output_dir\": \"results/multilingual/${SIZE}/${VARIANT}/1234\"}'"
+TAG=large_ft
+CONFIG="$SIZE -m openai/${VARIANT}"
+#CONFIG="$SIZE -m openai/${VARIANT} -t -p \"{'manifest_dir': '../data/common_voice_10_0_${SIZE}'}\" -c \"{'output_dir': 'results/multilingual/${SIZE}/${VARIANT}/1234'}\""
+echo $CONFIG
 
 ovhai job run ovhcom/ai-training-pytorch:latest \
     --name common_voice_10_0_${SIZE}_${MODEL}_${TAG} \

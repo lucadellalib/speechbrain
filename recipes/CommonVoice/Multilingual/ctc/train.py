@@ -36,7 +36,7 @@ class ASR(sb.core.Brain):
         wavs, wav_lens = batch.sig
         wavs, wav_lens = wavs.to(self.device), wav_lens.to(self.device)
 
-        if hasattr(self.modules, "wav2vec2") or hasattr(self.modules, "hubert"):
+        if any(hasattr(self.modules, attr) for attr in ["wav2vec2", "hubert", "wavlm"]):
             # Add augmentation if specified
             if stage == sb.Stage.TRAIN:
                 if hasattr(self.hparams, "augmentation"):
@@ -45,8 +45,11 @@ class ASR(sb.core.Brain):
             # Forward pass
             if hasattr(self.modules, "wav2vec2"):
                 feats = self.modules.wav2vec2(wavs)
-            else:
+            elif hasattr(self.modules, "hubert"):
                 feats = self.modules.hubert(wavs)
+            else:
+                feats = self.modules.wavlm(wavs)
+
         else:
             # Forward pass
             feats = self.hparams.compute_features(wavs)
@@ -100,6 +103,9 @@ class ASR(sb.core.Brain):
             elif hasattr(self.hparams, "hubert"):
                 if not self.hparams.hubert.freeze:
                     self.optimizer_hubert.zero_grad()
+            elif hasattr(self.hparams, "wavlm"):
+                if not self.hparams.wavlm.freeze:
+                    self.optimizer_wavlm.zero_grad()
             self.optimizer.zero_grad()
 
             with torch.cuda.amp.autocast():
@@ -113,6 +119,9 @@ class ASR(sb.core.Brain):
             elif hasattr(self.hparams, "hubert"):
                 if not self.hparams.hubert.freeze:
                     self.scaler.unscale_(self.optimizer_hubert)
+            elif hasattr(self.hparams, "wavlm"):
+                if not self.hparams.wavlm.freeze:
+                    self.scaler.unscale_(self.optimizer_wavlm)
             self.scaler.unscale_(self.optimizer)
 
             if self.check_gradients(loss):
@@ -122,6 +131,9 @@ class ASR(sb.core.Brain):
                 elif hasattr(self.hparams, "hubert"):
                     if not self.hparams.hubert.freeze:
                         self.scaler.step(self.optimizer_hubert)
+                elif hasattr(self.hparams, "wavlm"):
+                    if not self.hparams.wavlm.freeze:
+                        self.scaler.step(self.optimizer_wavlm)
                 self.scaler.step(self.optimizer)
 
             self.scaler.update()
@@ -138,6 +150,9 @@ class ASR(sb.core.Brain):
                 elif hasattr(self.hparams, "hubert"):
                     if not self.hparams.hubert.freeze:
                         self.optimizer_hubert.step()
+                elif hasattr(self.hparams, "wavlm"):
+                    if not self.hparams.wavlm.freeze:
+                        self.optimizer_wavlm.step()
                 self.optimizer.step()
 
             if hasattr(self.hparams, "wav2vec2"):
@@ -145,7 +160,10 @@ class ASR(sb.core.Brain):
                     self.optimizer_wav2vec2.zero_grad()
             elif hasattr(self.hparams, "hubert"):
                 if not self.hparams.hubert.freeze:
-                    self.optimizer_hubert.zero_grad()                    
+                    self.optimizer_hubert.zero_grad()
+            elif hasattr(self.hparams, "wavlm"):
+                if not self.hparams.wavlm.freeze:
+                    self.optimizer_wavlm.zero_grad()
             self.optimizer.zero_grad()
 
         return loss.detach()
@@ -186,6 +204,11 @@ class ASR(sb.core.Brain):
                     old_lr_hubert,
                     new_lr_hubert,
                 ) = self.hparams.lr_annealing_hubert(stage_stats["loss"])
+            elif hasattr(self.hparams, "wavlm"):
+                (
+                    old_lr_wavlm,
+                    new_lr_wavlm,
+                ) = self.hparams.lr_annealing_wavlm(stage_stats["loss"])
             sb.nnet.schedulers.update_learning_rate(self.optimizer, new_lr)
             if hasattr(self.hparams, "wav2vec2"):
                 if not self.hparams.wav2vec2.freeze:
@@ -196,6 +219,11 @@ class ASR(sb.core.Brain):
                 if not self.hparams.hubert.freeze:
                     sb.nnet.schedulers.update_learning_rate(
                         self.optimizer_hubert, new_lr_hubert
+                    )
+            elif hasattr(self.hparams, "wavlm"):
+                if not self.hparams.wavlm.freeze:
+                    sb.nnet.schedulers.update_learning_rate(
+                        self.optimizer_wavlm, new_lr_wavlm
                     )
             
             if hasattr(self.hparams, "wav2vec2") and not self.hparams.wav2vec2.freeze:
@@ -209,6 +237,12 @@ class ASR(sb.core.Brain):
                         "epoch": epoch,
                         "lr": old_lr,
                         "lr_hubert": old_lr_hubert,
+                    }
+            elif hasattr(self.hparams, "wavlm") and not self.hparams.wavlm.freeze:
+                stats_meta_data={
+                        "epoch": epoch,
+                        "lr": old_lr,
+                        "lr_wavlm": old_lr_wavlm,
                     }
             else:
                 stats_meta_data={"epoch": epoch, "lr": old_lr}
@@ -251,6 +285,15 @@ class ASR(sb.core.Brain):
                 if self.checkpointer is not None:
                     self.checkpointer.add_recoverable(
                         "optimizer_hubert", self.optimizer_hubert
+                    )
+        elif hasattr(self.hparams, "wavlm"):
+            if not self.hparams.wavlm.freeze:
+                self.optimizer_wavlm = self.hparams.opt_class_wavlm(
+                    self.modules.wavlm.parameters()
+                )
+                if self.checkpointer is not None:
+                    self.checkpointer.add_recoverable(
+                        "optimizer_wavlm", self.optimizer_wavlm
                     )
         super().init_optimizers()
 
