@@ -9,7 +9,7 @@ seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 # Data files and directories
-output_dir: !ref results/en/large/ctc_wavlm/<seed>
+output_dir: !ref results/it/large/ctc_wavlm/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
@@ -19,7 +19,7 @@ dataset_size: large
 dataset_version: "10_0"
 dataset_dir: !ref ../data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
-locales: ['en'] # All languages
+locales: ['it'] # All languages
 
 # We remove utterances longer than 10s in the train/dev/test sets as
 # longer sentences certainly correspond to "open microphones".
