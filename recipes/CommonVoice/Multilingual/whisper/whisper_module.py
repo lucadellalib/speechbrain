@@ -44,7 +44,7 @@ class WhisperModelModule(LightningModule):
     ) -> None:
         super().__init__()
         lang=None
-        if locales != None:
+        if len(locales) == 1 and locales[0] in whisper.tokenizer.LANGUAGES.keys():
             lang=locales[0]
         self.options = whisper.DecodingOptions(language=lang, without_timestamps=True)
         self.model = whisper.load_model(model_name, in_memory=True)

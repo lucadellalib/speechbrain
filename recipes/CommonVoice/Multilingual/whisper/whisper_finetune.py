@@ -169,6 +169,7 @@ class CheckpointEveryNSteps(pl.Callback):
             trainer.save_checkpoint(ckpt_path)
 
 
+
 def main():
     args = get_parser()
     cfg = Config(**{k: v for k, v in list(vars(args).items()) if k in list(Config.__annotations__.keys())})
@@ -228,7 +229,8 @@ def main():
     if args.do_test:
         logger.info('Start testing...')
         model.eval()
-        if args.locales != None:
+        lang=None
+        if len(args.locales) == 1 and args.locales[0] in whisper.tokenizer.LANGUAGES.keys():
             lang=args.locales[0]
         woptions = whisper.DecodingOptions(language=lang, without_timestamps=True)
         wtokenizer = whisper.tokenizer.get_tokenizer(True, language=lang, task=woptions.task)
