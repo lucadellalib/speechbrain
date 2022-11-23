@@ -17,25 +17,29 @@
 # ==============================================================================
 
 import argparse
+import csv
 import json
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import evaluate
+import torch
 from datasets import Audio, load_dataset
 from torch import Tensor
 from transformers import (
     EvalPrediction,
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
-    WhisperFeatureExtractor,
+    WhisperConfig,
     WhisperForConditionalGeneration,
     WhisperProcessor,
-    WhisperTokenizer,
 )
 from transformers.models.whisper.english_normalizer import EnglishTextNormalizer
-from transformers.models.whisper.tokenization_whisper import LANGUAGES
+from transformers.models.whisper.tokenization_whisper import (
+    LANGUAGES,
+    TO_LANGUAGE_CODE,
+)
 
 from common_voice_prepare import prepare_common_voice
 
@@ -43,6 +47,88 @@ from common_voice_prepare import prepare_common_voice
 __all__ = [
     "fine_tune_whisper",
 ]
+
+
+KNOWN_LANGUAGES = list(LANGUAGES.keys())
+
+
+class WhisperForLanguageTranscription(WhisperForConditionalGeneration):
+    def __init__(
+        self,
+        config: "WhisperConfig",
+        available_language_token_ids: "Optional[Sequence[int]]" = None,
+        forced_language_id: "Optional[int]" = None,
+    ) -> "None":
+        super().__init__(config)
+        self.available_language_token_ids = available_language_token_ids
+        self.forced_language_id = (
+            forced_language_id  # Can be changed after model initialization
+        )
+        self._startoftranscript_id = 50258
+        self._transcribe_id = 50359
+        self._notimestamps_id = 50363
+
+    def generate(
+        self, inputs: "Optional[torch.Tensor]" = None, **kwargs: "Any"
+    ) -> "Any":
+        if (
+            self.available_language_token_ids is not None
+            and self.forced_language_id is None
+        ):
+            self.config.forced_decoder_ids = None
+            (
+                self.predicted_language_token_id,
+                decoder_input_ids,
+            ) = self._predict_language_token_id(
+                inputs, self.available_language_token_ids,
+            )
+            kwargs["decoder_input_ids"] = decoder_input_ids
+        else:
+            self.predicted_language_token_id = None
+            # If self.forced_language_id is None leave default value
+            if self.forced_language_id is not None:
+                self.config.forced_decoder_ids = [
+                    (1, self.forced_language_id),
+                    (2, self._transcribe_id),
+                    (3, self._notimestamps_id),
+                ]
+        return super().generate(inputs, **kwargs)
+
+    # Adapted from:
+    # https://discuss.huggingface.co/t/language-detection-with-whisper/26003/2
+    def _predict_language_token_id(
+        self,
+        input_features: "Tensor",
+        available_language_token_ids: "Sequence[int]",
+    ) -> "Tuple[Tensor, Tensor]":
+        # Compute logits
+        logits = self.forward(
+            input_features,
+            decoder_input_ids=torch.full(
+                (input_features.shape[0], 1),
+                self._startoftranscript_id,
+                device=input_features.device,
+            ),
+        ).logits
+        mask = torch.ones(
+            logits.shape[-1], device=logits.device, dtype=torch.bool
+        )
+        mask[available_language_token_ids] = False
+        logits[:, :, mask] = -float("inf")
+
+        # Compute most likely language token
+        predicted_language_token_id = logits.argmax(dim=-1)
+
+        # Prepare decoder input ids
+        decoder_input_ids = torch.empty(
+            (logits.shape[0], 4), device=logits.device
+        )
+        decoder_input_ids[:, 0] = self._startoftranscript_id
+        decoder_input_ids[:, 1] = predicted_language_token_id[:, 0]
+        decoder_input_ids[:, 2] = self._transcribe_id
+        decoder_input_ids[:, 3] = self._notimestamps_id
+
+        return predicted_language_token_id.long(), decoder_input_ids.long()
 
 
 # Adapted from:
@@ -85,7 +171,9 @@ def fine_tune_whisper(
     training_kwargs = training_kwargs or {}
 
     # FIXME:
-    prepare_common_voice_kwargs["manifest_dir"] = f"../data/common_voice_10_0_{dataset_size}"
+    prepare_common_voice_kwargs[
+        "manifest_dir"
+    ] = f"../data/common_voice_10_0_{dataset_size}"
 
     # Prepare data
     prepare_common_voice(dataset_size, **prepare_common_voice_kwargs)
@@ -98,27 +186,42 @@ def fine_tune_whisper(
     manifest_dir = prepare_common_voice_kwargs.get(
         "manifest_dir", f"{dataset_dir}_{dataset_size}"
     )
-    locales = prepare_common_voice_kwargs.get("locales", [])
+    locales = prepare_common_voice_kwargs.get("locales") or []
 
     # Build pipeline
-    language = LANGUAGES[locales[0]] if len(locales) == 1 else None
-    feature_extractor = WhisperFeatureExtractor.from_pretrained(whisper_model)
-    tokenizer = WhisperTokenizer.from_pretrained(
-        whisper_model, language=language, task="transcribe",
-    )
     processor = WhisperProcessor.from_pretrained(
-        whisper_model, language=language, task="transcribe"
+        whisper_model, task="transcribe"
     )
+    feature_extractor = processor.feature_extractor
+    tokenizer = processor.tokenizer
+
+    # Build model
+    available_language_tokens = [f"<|{l}|>" for l in LANGUAGES]
+    available_language_token_ids = tokenizer.convert_tokens_to_ids(
+        available_language_tokens
+    )
+    model = WhisperForLanguageTranscription.from_pretrained(
+        whisper_model,
+        available_language_token_ids=available_language_token_ids,
+    )
+    model.config.use_cache = False
+
+    # No tokens are forced as decoder outputs, no tokens are suppressed during generation
+    model.forced_language_id = None
+    model.config.suppress_tokens = []
 
     # Build dataset
-    dataset = load_dataset(
-        "csv",
-        data_files={
-            "train": os.path.join(manifest_dir, "train.csv"),
-            "dev": os.path.join(manifest_dir, "dev.csv"),
-            "test": os.path.join(manifest_dir, "test.csv"),
-        },
-    )
+    data_files = {
+        "test": os.path.join(manifest_dir, "test.csv"),
+    }
+    if not test_only:
+        data_files.update(
+            {
+                "train": os.path.join(manifest_dir, "train.csv"),
+                "dev": os.path.join(manifest_dir, "dev.csv"),
+            }
+        )
+    dataset = load_dataset("csv", data_files=data_files)
     dataset = dataset.remove_columns(
         [
             "ID",
@@ -128,7 +231,6 @@ def fine_tune_whisper(
             "down_votes",
             "duration",
             "gender",
-            "locale",
             "segment",
             "up_votes",
         ]
@@ -138,9 +240,35 @@ def fine_tune_whisper(
         sample["mp3"] = sample["mp3"].replace("$root_dir", manifest_dir)
         return sample
 
-    dataset = dataset.map(resolve_root_dir, num_proc=8)
+    dataset = dataset.map(resolve_root_dir)
     dataset = dataset.rename_columns({"mp3": "audio", "wrd": "sentence"})
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16000))
+
+    # Add `diff` dummy languages to make `tokenizer.prefix_tokens`
+    # return the correct id for new added languages
+    # (see https://github.com/huggingface/transformers/blob/95754b47a6d4fbdad3440a45762531e8c471c528/src/transformers/models/whisper/tokenization_whisper.py#L413)
+    last_language = list(LANGUAGES)[-1]
+    last_language_index = tokenizer.additional_special_tokens.index(
+        f"<|{last_language}|>"
+    )
+    diff = len(tokenizer.additional_special_tokens) - last_language_index - 1
+    for i in range(diff):
+        LANGUAGES[i] = i
+
+    def add_unknown_locales(sample: "Dict[str, Any]") -> "Dict[str, Any]":
+        # Add locale if unknown
+        locale = sample["locale"].lower()
+        if locale not in LANGUAGES:
+            TO_LANGUAGE_CODE[locale] = LANGUAGES[locale] = locale
+            tokenizer.add_tokens(f"<|{locale}|>", special_tokens=True)
+        return sample
+
+    dataset.map(
+        add_unknown_locales,
+        remove_columns=[
+            n for n in dataset.column_names["test"] if n != "locale"
+        ],
+    )
 
     def prepare_dataset(sample: "Dict[str, Any]") -> "Dict[str, Any]":
         # Load and resample audio data from 48kHz to 16kHz
@@ -151,20 +279,23 @@ def fine_tune_whisper(
             audio["array"], sampling_rate=audio["sampling_rate"],
         ).input_features[0]
 
+        # Set locale
+        locale = sample["locale"].lower()
+        language = LANGUAGES[locale]
+        tokenizer.set_prefix_tokens(
+            language, task="transcribe", predict_timestamps=False
+        )
+
         # Encode target text to label ids
         sample["labels"] = tokenizer(sample["sentence"]).input_ids
         return sample
 
-    dataset = dataset.map(
-        prepare_dataset,
-        remove_columns=dataset.column_names["train"],
-        num_proc=8,
-    )
+    dataset = dataset.map(prepare_dataset, remove_columns=["locale"],)
 
     # Build data collator
     @dataclass
     class DataCollatorSpeechSeq2SeqWithPadding:
-        processor: "Any"
+        processor: "WhisperProcessor"
 
         def __call__(
             self, features: "List[Dict[str, Union[List[int], Tensor]]]"
@@ -195,7 +326,7 @@ def fine_tune_whisper(
             )
 
             # If BOS token is appended in previous tokenization step,
-            # cut BOS token here as it's append later anyways
+            # cut BOS token here as it's append later anyway
             if (
                 (labels[:, 0] == self.processor.tokenizer.bos_token_id)
                 .all()
@@ -209,6 +340,39 @@ def fine_tune_whisper(
             return batch
 
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
+
+    # Set default training arguments
+    training_kwargs.setdefault("seed", 1234)
+    training_kwargs.setdefault(
+        "output_dir",
+        os.path.join(
+            "results",
+            "multilingual" if not locales else "_".join(locales),
+            dataset_size,
+            os.path.basename(whisper_model) + ("-ft" if not test_only else ""),
+            str(training_kwargs["seed"]),
+        ),
+    )
+    training_kwargs.setdefault("per_device_train_batch_size", 2)
+    training_kwargs.setdefault("gradient_accumulation_steps", 8)
+    training_kwargs.setdefault("learning_rate", 1e-4)
+    training_kwargs.setdefault("num_train_epochs", 20)
+    training_kwargs.setdefault("gradient_checkpointing", True)
+    training_kwargs.setdefault("dataloader_num_workers", 4)
+    training_kwargs.setdefault("fp16", True)
+    training_kwargs.setdefault("group_by_length", True)
+    training_kwargs.setdefault("evaluation_strategy", "epoch")
+    training_kwargs.setdefault("per_device_eval_batch_size", 2)
+    training_kwargs.setdefault("predict_with_generate", True)
+    training_kwargs.setdefault("generation_max_length", 225)
+    training_kwargs.setdefault("save_strategy", "epoch")
+    training_kwargs.setdefault("logging_strategy", "epoch")
+    training_kwargs.setdefault("report_to", ["tensorboard"])
+    training_kwargs.setdefault("load_best_model_at_end", True)
+    training_kwargs.setdefault("metric_for_best_model", "loss")
+    training_kwargs.setdefault("greater_is_better", False)
+    training_kwargs.setdefault("push_to_hub", False)
+    training_args = Seq2SeqTrainingArguments(**training_kwargs)
 
     # Build performance metrics
     cer_metric = evaluate.load("cer")
@@ -227,72 +391,41 @@ def fine_tune_whisper(
         label_ids[label_ids == -100] = tokenizer.pad_token_id
 
         # We do not want to group tokens when computing the metrics
-        pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-        label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+        preds = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
+        labels = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+        languages = tokenizer.batch_decode(
+            [s[1] for s in pred_ids], skip_special_tokens=False
+        )
 
         # Normalize
-        pred_str = [normalizer(s) for s in pred_str]
-        label_str = [normalizer(s) for s in label_str]
+        preds = [normalizer(s) for s in preds]
+        labels = [normalizer(s) for s in labels]
 
-        print("Example transcription/label:")
-        print(pred_str[0])
-        print(label_str[0])
+        # Write transcription file
+        output_dir = training_kwargs["output_dir"]
+        output_file = os.path.join(output_dir, "transcriptions.csv")
+        i = 0
+        while os.path.exists(f"{output_file}_{i}.csv"):
+            i += 1
+        with open(f"{output_file}_{i}.csv", "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(["language", "transcription", "reference"])
+            for language, transcription, reference in zip(
+                languages, preds, labels
+            ):
+                writer.writerow([language, transcription, reference])
 
-        cer = 100 * cer_metric.compute(
-            predictions=pred_str, references=label_str
-        )
-        wer = 100 * wer_metric.compute(
-            predictions=pred_str, references=label_str
-        )
+        cer = 100 * cer_metric.compute(predictions=preds, references=labels)
+        wer = 100 * wer_metric.compute(predictions=preds, references=labels)
 
         return {"cer": cer, "wer": wer}
-
-    # Build model
-    model = WhisperForConditionalGeneration.from_pretrained(whisper_model)
-
-    # No tokens are forced as decoder outputs, no tokens are suppressed during generation
-    model.config.forced_decoder_ids = None
-    model.config.suppress_tokens = []
-
-    # Set default training arguments
-    training_kwargs.setdefault("seed", 1234)
-    training_kwargs.setdefault(
-        "output_dir",
-        os.path.join(
-            "results",
-            "multilingual" if not locales else "_".join(locales),
-            dataset_size,
-            os.path.basename(whisper_model) + ("-ft" if not test_only else ""),
-            str(training_kwargs["seed"]),
-        ),
-    )
-    training_kwargs.setdefault("per_device_train_batch_size", 1)
-    training_kwargs.setdefault("gradient_accumulation_steps", 8)
-    training_kwargs.setdefault("learning_rate", 1e-4)
-    training_kwargs.setdefault("num_train_epochs", 20)
-    training_kwargs.setdefault("gradient_checkpointing", True)
-    training_kwargs.setdefault("dataloader_num_workers", 4)
-    training_kwargs.setdefault("fp16", True)
-    training_kwargs.setdefault("group_by_length", True)
-    training_kwargs.setdefault("evaluation_strategy", "epoch")
-    training_kwargs.setdefault("per_device_eval_batch_size", 1)
-    training_kwargs.setdefault("predict_with_generate", True)
-    training_kwargs.setdefault("generation_max_length", 225)
-    training_kwargs.setdefault("save_strategy", "epoch")
-    training_kwargs.setdefault("logging_strategy", "epoch")
-    training_kwargs.setdefault("report_to", ["tensorboard"])
-    training_kwargs.setdefault("load_best_model_at_end", True)
-    training_kwargs.setdefault("metric_for_best_model", "loss")
-    training_kwargs.setdefault("greater_is_better", False)
-    training_kwargs.setdefault("push_to_hub", False)
-    training_args = Seq2SeqTrainingArguments(**training_kwargs)
 
     # Build trainer
     trainer = Seq2SeqTrainer(
         args=training_args,
         model=model,
-        train_dataset=dataset["train"],
-        eval_dataset=dataset["dev"],
+        train_dataset=dataset["train"] if "train" in dataset else None,
+        eval_dataset=dataset["dev"] if "dev" in dataset else None,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
         tokenizer=processor.feature_extractor,
@@ -321,10 +454,10 @@ def fine_tune_whisper(
                 )
                 lines.append(line)
 
-    # If single language, set it in the decoder before testing
-    if len(locales) == 1:
-        model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(
-            language=locales[0], task="transcribe"
+    # If single known language, set it in the decoder before testing
+    if len(locales) == 1 and locales[0] in KNOWN_LANGUAGES:
+        model.forced_language_id = tokenizer.convert_tokens_to_ids(
+            f"<|{locales[0].lower()}|>"
         )
 
     # Test
@@ -369,16 +502,16 @@ if __name__ == "__main__":
         "-p",
         "--prepare_common_voice_kwargs",
         default="{}",
-        type=lambda x: json.loads(x.replace("'", '"')),
-        help="`prepare_common_voice` keyword arguments in JSON format (see common_voice_prepare.py)",
+        type=lambda x: eval(x.replace("`", "'")),
+        help="`prepare_common_voice` keyword arguments as Python code (see common_voice_prepare.py)",
     )
     parser.add_argument(
         "-c",
         "--training_kwargs",
         default="{}",
-        type=lambda x: json.loads(x.replace("'", '"')),
+        type=lambda x: eval(x.replace("`", "'")),
         help=(
-            "training keyword arguments in JSON format "
+            "training keyword arguments as Python code "
             "(see https://github.com/huggingface/transformers/blob/e82c1cb78e178519060b9391214727be75a218ca/src/transformers/training_args.py#L121)"
         ),
     )
