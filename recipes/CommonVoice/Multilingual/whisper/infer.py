@@ -68,23 +68,28 @@ def transcribe(
             return preds, None
         else:
             results = []
+
             for pred, ref in zip(preds, refs):
+                ref['text']=normalizer(ref['text'])
+                pred['pred_text']=normalizer(pred['pred_text'])
                 wer = whisper_model.metrics_wer(
-                    [normalizer(ref['text']), ],
-                    [normalizer(pred['pred_text']), ]
+                    [ref['text'], ],
+                    [pred['pred_text'], ]
                 ) * 100
                 cer = whisper_model.metrics_cer(
-                    [normalizer(ref['text']), ],
-                    [normalizer(pred['pred_text']), ]
+                    [ref['text'], ],
+                    [pred['pred_text'], ]
                 ) * 100
                 t_wer.append(wer)
                 t_cer.append(cer)
                 result = {**pred, **ref, 'cer': cer, 'wer': wer}
                 results.append(result)
+                
             metrics = {
                 'wer': np.array(t_wer),
                 'cer': np.array(t_cer)
             }
+          
             return results, metrics
 
 

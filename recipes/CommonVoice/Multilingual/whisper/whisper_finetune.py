@@ -264,6 +264,8 @@ def main():
         with open(args.test_results_json_filepath, 'w') as of:
             for line in preds:
                 of.write(json.dumps(line) + '\n')
+            of.write(json.dumps({"Mean":"Test", "cer": metrics['cer'].mean(),"wer": metrics['wer'].mean()}) + '\n')
+            of.write(json.dumps({"STD":"Test", "cer": metrics['cer'].std(),"wer": metrics['wer'].std()}) + '\n')
 
 
 if __name__ == "__main__":
