@@ -63,6 +63,7 @@ class WhisperModelModule(LightningModule):
         self.dataset_size=dataset_size
         self.dataset_dir=dataset_dir
         self.locales=locales
+
    
 
     def forward(self, x):
@@ -79,7 +80,7 @@ class WhisperModelModule(LightningModule):
 
         loss = self.loss_fn(out.view(-1, out.size(-1)), labels.view(-1))
 
-        self.log('train loss', loss, on_step=True, logger=True)
+        self.log('train loss', loss, on_epoch=True,on_step=False, logger=True)
         return loss
 
     def validation_step(self, batch, batch_id):
@@ -104,9 +105,9 @@ class WhisperModelModule(LightningModule):
         cer = self.metrics_cer(l_list, o_list) * 100
         wer = self.metrics_wer(l_list, o_list) * 100
 
-        self.log('val/loss', loss, on_step=True, prog_bar=True, logger=True)
-        self.log('val/cer', cer, on_step=True, prog_bar=True, logger=True)
-        self.log('val/wer', wer, on_step=True, prog_bar=True, logger=True)
+        self.log('val/loss', loss, on_epoch=True,on_step=False, prog_bar=True, logger=True)
+        self.log('val/cer', cer, on_epoch=True, on_step=False,prog_bar=True, logger=True)
+        self.log('val/wer', wer, on_epoch=True, on_step=False,prog_bar=True, logger=True)
 
         return {
             'cer': cer,

@@ -17,7 +17,7 @@ from pytorch_lightning import Trainer, seed_everything
 from whisper_module import WhisperModelModule, Config
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from common_voice_dataset import CommonVoiceDataset, WhisperDataCollatorWithPadding,load_manifests
-
+from pytorch_lightning.loggers import CSVLogger
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter(
@@ -182,11 +182,12 @@ def main():
             monitor='val/loss',
             save_top_k=args.save_top_k,
         ),
-#         LearningRateMonitor(logging_interval='epoch'),
+        LearningRateMonitor(logging_interval='epoch'),
         CheckpointEveryNSteps(args.checkpoint_every_n_steps)
     ]
 
     manifests = load_manifests(args.dataset_size, args.dataset_dir,args.locales)
+    train_logger = CSVLogger(Path(args.base_dir) / 'logging', name="whisper_ft")
 
         # set up training
 #     train_logger = (
@@ -218,8 +219,8 @@ def main():
         max_epochs=cfg.num_train_epochs,
         accumulate_grad_batches=cfg.gradient_accumulation_steps,
         callbacks=callback_list,
-#         logger=train_logger,
-        log_every_n_steps=args.log_every_n_steps
+        logger=train_logger,
+#         log_every_n_steps=args.log_every_n_steps
     )
 
     if args.do_train:
