@@ -233,7 +233,7 @@ def dataio_prepare(hparams, tokenizer):
 
 
     datasets = [train_data, valid_data, test_data]
-    
+
     # 2. Define audio pipeline:
     @sb.utils.data_pipeline.takes("mp3")
     @sb.utils.data_pipeline.provides("sig")
@@ -312,7 +312,7 @@ if __name__ == "__main__":
     )
 
     # here we create the datasets objects as well as tokenization and encoding
-    train_data, valid_data, test_datasets = dataio_prepare(hparams, tokenizer)
+    train_data, valid_data, test_data = dataio_prepare(hparams, tokenizer)
 
     # Trainer initialization
     asr_brain = ASR(
@@ -341,10 +341,16 @@ if __name__ == "__main__":
     )
 
     # Testing
-    for k in test_datasets.keys():  # keys are test_clean, test_other etc
-        asr_brain.hparams.wer_file = os.path.join(
-            hparams["output_dir"], "wer_{}.txt".format(k)
-        )
-        asr_brain.evaluate(
-            test_datasets[k], test_loader_kwargs=hparams["test_dataloader_opts"]
-        )
+    asr_brain.hparams.wer_file = hparams["output_dir"] + "/wer_test.txt"
+    asr_brain.evaluate(
+        test_data,
+        min_key="WER",
+        test_loader_kwargs=hparams["test_dataloader_opts"],
+    )
+
+    asr_brain.hparams.wer_file = hparams["output_dir"] + "/wer_valid.txt"
+    asr_brain.evaluate(
+        valid_data,
+        min_key="WER",
+        test_loader_kwargs=hparams["test_dataloader_opts"],
+    )
