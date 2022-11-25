@@ -7,7 +7,7 @@
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 1986
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_dir: !ref results/en/train_whisper_char/<seed>
+output_dir: !ref results/it/train_whisper_char/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
@@ -20,7 +20,7 @@ dataset_size: small
 dataset_version: "10_0"
 dataset_dir: !ref data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
-locales: ["en"] # Arabic
+locales: ["it"] # Arabic
 
 
 # Training parameters
