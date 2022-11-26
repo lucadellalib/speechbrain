@@ -22,4 +22,4 @@ cd ..
 cd ${MODEL}
 mkdir -p /workspace/common_voice_10_0_${SIZE}_output/results
 ln -s /workspace/common_voice_10_0_${SIZE}_output/results results
-python train_encoder_decoder.py ${CONFIG}
+python train_encoder.py ${CONFIG}
