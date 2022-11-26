@@ -36,8 +36,8 @@ auto_mix_prec: True
 # With data_parallel batch_size is split into N jobs
 # With DDP batch_size is multiplied by N jobs
 # Must be 8 per GPU to fit 32GB of VRAM
-batch_size: 8
-test_batch_size: 16
+batch_size: 2
+test_batch_size: 8
 
 # Feature parameters
 sample_rate: 16000

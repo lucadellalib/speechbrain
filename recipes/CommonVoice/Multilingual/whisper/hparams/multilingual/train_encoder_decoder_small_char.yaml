@@ -1,5 +1,5 @@
 # ############################################################################
-# Model: Whisper Encoder-Decoder
+# Model: Whisper Encoder-Decoder with character vocabulary
 # Augmentation: SpecAugment
 # Authors: Luca Della Libera 2022
 # ############################################################################
@@ -9,14 +9,14 @@ seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 # Data preparation
-dataset_size: medium
+dataset_size: small
 dataset_version: "10_0"
 dataset_dir: !ref ../data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
-locales: null # All languages
+locales: ["ar"] # All languages
 
 # Data files and directories
-output_dir: !ref results/multilingual/<dataset_size>/whisper_large_encoder_decoder_test/<seed>
+output_dir: !ref results/multilingual/<dataset_size>/whisper_encoder_decoder/<seed>
 wer_file: !ref <output_dir>/wer.txt
 save_dir: !ref <output_dir>/save
 train_log: !ref <output_dir>/train_log.txt
@@ -28,7 +28,7 @@ avoid_if_longer_than: 10.0
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
-number_of_epochs: 0
+number_of_epochs: 20 #100
 lr_model: 0.0001
 sorting: ascending
 auto_mix_prec: True
@@ -38,6 +38,10 @@ auto_mix_prec: True
 # Must be 8 per GPU to fit 32GB of VRAM
 batch_size: 2
 test_batch_size: 8
+
+# BPE parameters
+token_type: char  # ["unigram", "bpe", "char"]
+character_coverage: 1.0
 
 # Feature parameters
 sample_rate: 16000
@@ -57,12 +61,16 @@ test_dataloader_opts:
     num_workers: 2
 
 # Model parameters
-whisper_hub: openai/whisper-large
+whisper_hub: openai/whisper-tiny
 freeze_encoder: False
+output_neurons: 1218
 
 # Decoding parameters
 max_gen_tokens: 200
-forced_decoder_locale: null
+forced_decoder_locale: ar
+pad_index: 0
+bos_index: 1
+eos_index: 2
 
 # Time domain SpecAugment
 augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
@@ -82,18 +90,22 @@ whisper: !new:speechbrain.lobes.models.huggingface_whisper.HuggingFaceWhisper
    freeze_encoder: !ref <freeze_encoder>
    save_path: !ref <save_dir>/whisper_checkpoint
    encoder_only: False
-   freeze: True
 
 log_softmax: !new:speechbrain.nnet.activations.Softmax
     apply_log: True
 
 nll_loss: !name:speechbrain.nnet.losses.nll_loss
 
+proj_lin: !new:speechbrain.nnet.linear.Linear
+    input_size: 51865
+    n_neurons: !ref <output_neurons>
+
 modules:
     whisper: !ref <whisper>
+    proj_lin: !ref <proj_lin>
 
 model: !new:torch.nn.ModuleList
-    - [!ref <whisper>]
+    - [!ref <proj_lin>]
 
 # Optimizers
 opt_class: !name:torch.optim.Adadelta
