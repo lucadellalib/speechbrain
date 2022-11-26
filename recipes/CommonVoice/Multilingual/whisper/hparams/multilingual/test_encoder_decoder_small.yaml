@@ -13,7 +13,7 @@ dataset_size: small
 dataset_version: "10_0"
 dataset_dir: !ref ../data/common_voice_<dataset_version>
 manifest_dir: !ref <dataset_dir>_<dataset_size>
-locales: null # All languages
+locales: ["ar"] # All languages
 
 # Data files and directories
 output_dir: !ref results/multilingual/<dataset_size>/whisper_large_encoder_decoder_test/<seed>
@@ -37,27 +37,27 @@ auto_mix_prec: True
 # With DDP batch_size is multiplied by N jobs
 # Must be 8 per GPU to fit 32GB of VRAM
 batch_size: 8
-test_batch_size: 8
+test_batch_size: 16
 
 # Feature parameters
 sample_rate: 16000
 
 # Dataloader options
 train_dataloader_opts:
-    batch_size: !ref <batch_size>
+    batch_size: !ref <test_batch_size>
     shuffle: True
-    num_workers: 6
+    num_workers: 2
 
 valid_dataloader_opts:
-    batch_size: !ref <batch_size>
-    num_workers: 6
+    batch_size: !ref <test_batch_size>
+    num_workers: 2
 
 test_dataloader_opts:
-    batch_size: !ref <batch_size>
-    num_workers: 6
+    batch_size: !ref <test_batch_size>
+    num_workers: 2
 
 # Model parameters
-whisper_hub: openai/whisper-large
+whisper_hub: openai/whisper-tiny
 freeze_encoder: False
 
 # Decoding parameters
