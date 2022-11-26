@@ -57,7 +57,7 @@ test_dataloader_opts:
     num_workers: 2
 
 # Model parameters
-whisper_hub: openai/whisper-tiny
+whisper_hub: openai/whisper-large
 freeze_encoder: False
 
 # Decoding parameters
