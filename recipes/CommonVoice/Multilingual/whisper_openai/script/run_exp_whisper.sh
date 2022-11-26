@@ -12,7 +12,7 @@ git clone --branch  common-voice-multilingual --single-branch https://github.com
 cd speechbrain/recipes/CommonVoice/Multilingual/
 conda env create -f environment.yaml
 source activate multilingual-env
-cd whisper
+cd whisper_openai
 
 
 if [ $TEST -eq 1 ]

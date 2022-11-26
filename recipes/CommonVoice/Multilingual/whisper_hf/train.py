@@ -34,6 +34,7 @@ from transformers import (
     WhisperConfig,
     WhisperForConditionalGeneration,
     WhisperProcessor,
+WhisperTokenizer
 )
 from transformers.models.whisper.english_normalizer import EnglishTextNormalizer
 from transformers.models.whisper.tokenization_whisper import (
@@ -195,21 +196,6 @@ def fine_tune_whisper(
     feature_extractor = processor.feature_extractor
     tokenizer = processor.tokenizer
 
-    # Build model
-    available_language_tokens = [f"<|{l}|>" for l in LANGUAGES]
-    available_language_token_ids = tokenizer.convert_tokens_to_ids(
-        available_language_tokens
-    )
-    model = WhisperForLanguageTranscription.from_pretrained(
-        whisper_model,
-        available_language_token_ids=available_language_token_ids,
-    )
-    model.config.use_cache = False
-
-    # No tokens are forced as decoder outputs, no tokens are suppressed during generation
-    model.forced_language_id = None
-    model.config.suppress_tokens = []
-
     # Build dataset
     data_files = {
         "test": os.path.join(manifest_dir, "test.csv"),
@@ -290,7 +276,22 @@ def fine_tune_whisper(
         sample["labels"] = tokenizer(sample["sentence"]).input_ids
         return sample
 
-    dataset = dataset.map(prepare_dataset, remove_columns=["locale"],)
+    dataset = dataset.map(prepare_dataset, remove_columns=["locale"])
+
+    # Build model
+    available_language_tokens = [f"<|{l}|>" for l in LANGUAGES]
+    available_language_token_ids = tokenizer.convert_tokens_to_ids(
+        available_language_tokens
+    )
+    model = WhisperForLanguageTranscription.from_pretrained(
+        whisper_model,
+        available_language_token_ids=available_language_token_ids,
+    )
+    model.config.use_cache = False
+
+    # No tokens are forced as decoder outputs, no tokens are suppressed during generation
+    model.forced_language_id = None
+    model.config.suppress_tokens = []
 
     # Build data collator
     @dataclass

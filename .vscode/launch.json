@@ -5,6 +5,7 @@
     "version": "0.2.0",
     "configurations": [
 
+
     
         {
             "name": "Python: Current File",
@@ -12,10 +13,11 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
             "justMyCode": false,
             "env": {
                     "PYDEVD_WARN_EVALUATION_TIMEOUT": "10000"},
-            "args": [ "./recipes/CommonVoice/single_language_ASR/ctc/hparams/train_small_en.yaml"]           
+            "args": [ "hparams/multilingual/train_encoder_decoder_small.yaml"]           
         }
     ]
 }

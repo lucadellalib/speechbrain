@@ -1,3 +1,6 @@
+# Copied from:
+# https://github.com/Adel-Moumen/speechbrain/blob/80005b82b195b3d8860b0ff56cbdd3135001f528/speechbrain/lobes/models/huggingface_whisper.py
+
 """This lobe enables the integration of huggingface pretrained whisper model.
 
 Transformer from HuggingFace needs to be installed:
