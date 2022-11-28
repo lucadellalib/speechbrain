@@ -82,7 +82,7 @@ class ASR(sb.core.Brain):
         )
         while (
             hyps[unfinished_mask, num_gen_tokens + 3] != endoftext_id
-        ).any() and num_gen_tokens < self.hparams.max_gen_tokens:
+        ).any() and (num_gen_tokens < self.hparams.max_gen_tokens):
             decoder_out = self.modules.whisper.forward_decoder(
                 encoder_out[unfinished_mask],
                 hyps[unfinished_mask, : num_gen_tokens + 4],

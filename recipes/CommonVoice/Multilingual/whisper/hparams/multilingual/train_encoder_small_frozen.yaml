@@ -38,7 +38,7 @@ auto_mix_prec: True
 # With DDP batch_size is multiplied by N jobs
 # Must be 8 per GPU to fit 32GB of VRAM
 batch_size: 8
-test_batch_size: 8
+test_batch_size: 16
 
 # BPE parameters
 token_type: char  # ["unigram", "bpe", "char"]

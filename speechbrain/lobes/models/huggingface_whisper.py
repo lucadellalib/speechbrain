@@ -76,7 +76,7 @@ class HuggingFaceWhisper(nn.Module):
         )
         self._n_fft = feature_extractor.n_fft
         self._hop_length = feature_extractor.hop_length
-        self._nb_max_frames = feature_extractor.nb_max_frames
+        self._n_samples = feature_extractor.n_samples
         self.register_buffer(
             "_mel_filters", torch.as_tensor(feature_extractor.mel_filters)
         )
@@ -156,8 +156,8 @@ class HuggingFaceWhisper(nn.Module):
         wav : torch.Tensor (signal)
             A batch of audio signals to transform to features.
         """
-        mels = self._log_mel_spectrogram(wav)
-        mels = self._pad_or_trim(mels)
+        mels = self._pad_or_trim(wav)
+        mels = self._log_mel_spectrogram(mels)
         return mels
 
     # Adapted from:
@@ -189,17 +189,17 @@ class HuggingFaceWhisper(nn.Module):
         mel_spec = filters @ magnitudes
 
         log_spec = torch.clamp(mel_spec, min=1e-10).log10()
-        log_spec = torch.maximum(log_spec, log_spec.max() - 8.0)
+        log_spec = torch.maximum(
+            log_spec,
+            (log_spec.flatten(start_dim=1).max(dim=-1)[0] - 8.0)[:, None, None],
+        )
         log_spec = (log_spec + 4.0) / 4.0
         return log_spec
 
     # Adapted from:
     # https://github.com/openai/whisper/blob/eff383b27b783e280c089475852ba83f20f64998/whisper/audio.py#L52
     def _pad_or_trim(self, array, axis=-1):
-        """Pad or trim the log-Mel spectrograms as expected by the encoder
-        (see https://github.com/openai/whisper/blob/eff383b27b783e280c089475852ba83f20f64998/whisper/transcribe.py#L92,
-        https://github.com/openai/whisper/blob/eff383b27b783e280c089475852ba83f20f64998/whisper/transcribe.py#L177, and
-        https://github.com/openai/whisper/blob/eff383b27b783e280c089475852ba83f20f64998/whisper/audio.py#L19).
+        """Pad or trim the log-Mel spectrograms as expected by the encoder.
 
         Arguments
         ----------
@@ -213,15 +213,18 @@ class HuggingFaceWhisper(nn.Module):
         torch.Tensor
             The padded tensor.
         """
-        if array.shape[axis] > self._nb_max_frames:
+        if array.shape[axis] > self._n_samples:
             array = array.index_select(
                 dim=axis,
-                index=torch.arange(self._nb_max_frames, device=array.device),
+                index=torch.arange(self._n_samples, device=array.device),
             )
 
-        if array.shape[axis] < self._nb_max_frames:
+        if array.shape[axis] < self._n_samples:
             pad_widths = [(0, 0)] * array.ndim
-            pad_widths[axis] = (0, self._nb_max_frames - array.shape[axis])
+            pad_widths[axis] = (
+                0,
+                self._n_samples - array.shape[axis],
+            )
             array = nn.functional.pad(
                 array, [pad for sizes in pad_widths[::-1] for pad in sizes]
             )
