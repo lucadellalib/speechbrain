@@ -40,9 +40,15 @@ class ASR(sb.core.Brain):
             if hasattr(self.hparams, "augmentation"):
                 wavs = self.hparams.augmentation(wavs, wav_lens)
 
-        tokens_bos = torch.nn.functional.embedding(tokens_bos, self.modules.proj_lin.w.weight, padding_idx=self.hparams.pad_index)
+        tokens_bos = torch.nn.functional.embedding(
+            tokens_bos,
+            self.modules.proj_lin.w.weight,
+            padding_idx=self.hparams.pad_index,
+        )
         encoder_out = self.modules.whisper.forward_encoder(wavs)
-        decoder_out = self.modules.whisper.forward_decoder(encoder_out, tokens_bos)
+        decoder_out = self.modules.whisper.forward_decoder(
+            encoder_out, tokens_bos
+        )
         logits = self.modules.proj_lin(decoder_out)
         log_probs = self.hparams.log_softmax(logits)
 
@@ -59,21 +65,37 @@ class ASR(sb.core.Brain):
         pad_id = self.hparams.pad_index
         endoftext_id = self.hparams.eos_index
 
-        hyps = torch.full((batch_size, self.hparams.max_gen_tokens + 1), pad_id, dtype=torch.long, device=self.device)
+        hyps = torch.full(
+            (batch_size, self.hparams.max_gen_tokens + 1),
+            pad_id,
+            dtype=torch.long,
+            device=self.device,
+        )
 
         # Prepare initial tokens in the right format
         hyps[:, 0] = startoftranscript_id
 
         # Autoregressive loop
         num_gen_tokens = 0
-        unfinished_idxes = torch.arange(len(hyps), dtype=torch.long,  device=self.device)
-        while (hyps[unfinished_idxes, num_gen_tokens] != endoftext_id).any() and num_gen_tokens < self.hparams.max_gen_tokens:
-            hyps[unfinished_idxes, :num_gen_tokens + 1] = torch.nn.functional.embedding(hyps[unfinished_idxes, :num_gen_tokens + 1], self.modules.proj_lin.w.weight, padding_idx=self.hparams.pad_index)
-            decoder_out = self.modules.whisper.forward_decoder(encoder_out[unfinished_idxes], hyps[unfinished_idxes, :num_gen_tokens + 1])
-            logits = self.modules.proj_lin(decoder_out)
+        unfinished_mask = torch.ones(
+            len(hyps), dtype=torch.bool, device=self.device
+        )
+        while (
+            hyps[unfinished_mask, num_gen_tokens + 3] != endoftext_id
+        ).any() and num_gen_tokens < self.hparams.max_gen_tokens:
+            decoder_out = self.modules.whisper.forward_decoder(
+                encoder_out[unfinished_mask],
+                hyps[unfinished_mask, : num_gen_tokens + 4],
+            )
+            logits = (
+                decoder_out
+                @ self.modules.whisper.model.decoder.embed_tokens.weight.T
+            )
             gen_tokens = logits.argmax(dim=-1)[:, -1]
-            hyps[unfinished_idxes, num_gen_tokens + 1] = gen_tokens
-            unfinished_idxes = torch.where(gen_tokens != endoftext_id)[0]
+            hyps[unfinished_mask, num_gen_tokens + 4] = gen_tokens
+            unfinished_mask[unfinished_mask == True] = (
+                gen_tokens != endoftext_id
+            )
             num_gen_tokens += 1
         return hyps
 
@@ -83,22 +105,36 @@ class ASR(sb.core.Brain):
 
         ids = batch.id
         tokens_eos, tokens_eos_lens = batch.tokens_eos
-        tokens_eos, tokens_eos_lens = tokens_eos.to(self.device), tokens_eos_lens.to(self.device)
+        tokens_eos, tokens_eos_lens = (
+            tokens_eos.to(self.device),
+            tokens_eos_lens.to(self.device),
+        )
 
         # Loss computation: use left-shifted labels as reference
-        loss = self.hparams.nll_loss(log_probs, tokens_eos, tokens_eos_lens, allowed_len_diff=float("inf"))
+        loss = self.hparams.nll_loss(
+            log_probs,
+            tokens_eos,
+            tokens_eos_lens,
+            allowed_len_diff=float("inf"),
+        )
 
         if stage != sb.Stage.TRAIN:
             tokens, tokens_lens = batch.tokens
 
             # Convert predicted tokens to words
-            predicted_words = self.tokenizer.batch_decode(predicted_tokens, skip_special_tokens=True)
+            predicted_words = self.tokenizer.batch_decode(
+                predicted_tokens, skip_special_tokens=True
+            )
 
             # Convert target tokens to words
             tokens = undo_padding(tokens, tokens_lens)
-            target_words = self.tokenizer.batch_decode(tokens, skip_special_tokens=True)
+            target_words = self.tokenizer.batch_decode(
+                tokens, skip_special_tokens=True
+            )
 
-            predicted_words = [self.english_normalizer(w) for w in predicted_words]
+            predicted_words = [
+                self.english_normalizer(w) for w in predicted_words
+            ]
             target_words = [self.english_normalizer(w) for w in target_words]
 
             self.wer_metric.append(ids, predicted_words, target_words)
@@ -147,9 +183,13 @@ class ASR(sb.core.Brain):
         if stage != sb.Stage.TRAIN:
             self.cer_metric = self.hparams.cer_computer()
             self.wer_metric = self.hparams.error_rate_computer()
-            with open(os.path.join(os.path.dirname(__file__), "english.json")) as f:
+            with open(
+                os.path.join(os.path.dirname(__file__), "english.json")
+            ) as f:
                 english_spelling_mapping = json.load(f)
-            self.english_normalizer = self.hparams.english_normalizer(english_spelling_mapping)
+            self.english_normalizer = self.hparams.english_normalizer(
+                english_spelling_mapping
+            )
 
     def on_stage_end(self, stage, stage_loss, epoch):
         """Gets called at the end of a epoch."""
@@ -165,15 +205,13 @@ class ASR(sb.core.Brain):
         if stage == sb.Stage.VALID:
             old_lr, new_lr = self.hparams.lr_annealing(stage_stats["loss"])
             sb.nnet.schedulers.update_learning_rate(self.optimizer, new_lr)
-            stats_meta_data={
-                    "epoch": epoch,
-                    "lr": old_lr,
-                }
+            stats_meta_data = {
+                "epoch": epoch,
+                "lr": old_lr,
+            }
 
             self.hparams.train_logger.log_stats(
-                stats_meta=(
-                  stats_meta_data
-                ),
+                stats_meta=(stats_meta_data),
                 train_stats=self.train_stats,
                 valid_stats=stage_stats,
             )

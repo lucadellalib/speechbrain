@@ -28,7 +28,7 @@ avoid_if_longer_than: 10.0
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
-number_of_epochs: 20
+number_of_epochs: 10
 lr_model: 1.0
 lr_whisper: 0.0001
 sorting: ascending
@@ -37,7 +37,7 @@ auto_mix_prec: True
 # With data_parallel batch_size is split into N jobs
 # With DDP batch_size is multiplied by N jobs
 # Must be 8 per GPU to fit 32GB of VRAM
-batch_size: 2
+batch_size: 8
 test_batch_size: 8
 
 # BPE parameters
@@ -51,15 +51,15 @@ sample_rate: 16000
 train_dataloader_opts:
     batch_size: !ref <batch_size>
     shuffle: True
-    num_workers: 2
+    num_workers: 6
 
 valid_dataloader_opts:
     batch_size: !ref <test_batch_size>
-    num_workers: 2
+    num_workers: 6
 
 test_dataloader_opts:
     batch_size: !ref <test_batch_size>
-    num_workers: 2
+    num_workers: 6
 
 # Model parameters
 whisper_hub: openai/whisper-large

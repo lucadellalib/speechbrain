@@ -117,23 +117,25 @@ class ASR(sb.core.Brain):
 
         # Autoregressive loop
         num_gen_tokens = 0
-        unfinished_idxes = torch.arange(
-            len(hyps), dtype=torch.long, device=self.device
+        unfinished_mask = torch.ones(
+            len(hyps), dtype=torch.bool, device=self.device
         )
         while (
-            hyps[unfinished_idxes, num_gen_tokens + 3] != endoftext_id
+            hyps[unfinished_mask, num_gen_tokens + 3] != endoftext_id
         ).any() and num_gen_tokens < self.hparams.max_gen_tokens:
             decoder_out = self.modules.whisper.forward_decoder(
-                encoder_out[unfinished_idxes],
-                hyps[unfinished_idxes, : num_gen_tokens + 4],
+                encoder_out[unfinished_mask],
+                hyps[unfinished_mask, : num_gen_tokens + 4],
             )
             logits = (
                 decoder_out
                 @ self.modules.whisper.model.decoder.embed_tokens.weight.T
             )
             gen_tokens = logits.argmax(dim=-1)[:, -1]
-            hyps[unfinished_idxes, num_gen_tokens + 4] = gen_tokens
-            unfinished_idxes = torch.where(gen_tokens != endoftext_id)[0]
+            hyps[unfinished_mask, num_gen_tokens + 4] = gen_tokens
+            unfinished_mask[unfinished_mask == True] = (
+                gen_tokens != endoftext_id
+            )
             num_gen_tokens += 1
         return hyps
 
