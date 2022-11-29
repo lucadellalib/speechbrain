@@ -33,7 +33,6 @@ class ASR(sb.core.Brain):
         """Forward computations from the waveform batches to the output probabilities."""
         batch = batch.to(self.device)
         wavs, wav_lens = batch.sig
-        tokens_bos, tokens_bos_lens = batch.tokens_bos
 
         if stage == sb.Stage.TRAIN:
             # Add augmentation if specified
@@ -41,10 +40,23 @@ class ASR(sb.core.Brain):
                 wavs = self.hparams.augmentation(wavs, wav_lens)
 
         encoder_out = self.modules.whisper.forward_encoder(wavs)
+
+        # Mask out NaN batch elements
+        isnan_mask = encoder_out.isnan().all(dim=-1).all(dim=-1)
+        encoder_out = encoder_out[~isnan_mask]
+        from speechbrain.dataio.batch import PaddedData
+        data, lengths = batch.tokens_bos
+        batch.tokens_bos = PaddedData(data[~isnan_mask], lengths[~isnan_mask])
+        data, lengths =  batch.tokens_eos
+        batch.tokens_eos = PaddedData(data[~isnan_mask], lengths[~isnan_mask])
+        data, lengths = batch.tokens
+        batch.tokens = PaddedData(data[~isnan_mask], lengths[~isnan_mask])
+        tokens_bos, tokens_bos_lens = batch.tokens_bos
+
         pad_id = self.modules.whisper.model.config.pad_token_id
         abs_tokens_lens = (tokens_bos_lens * tokens_bos.shape[1]).long()
         pad_mask = (
-            torch.arange(abs_tokens_lens.max(), device=self.device)[None, :]
+            torch.arange(tokens_bos.shape[1], device=self.device)[None, :]
             < abs_tokens_lens[:, None]
         )
         tokens_bos[~pad_mask] = pad_id

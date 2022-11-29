@@ -41,6 +41,15 @@ class ASR(sb.core.Brain):
 
         # Forward pass
         feats = self.modules.whisper(wavs)
+
+        # Mask out NaN batch elements
+        isnan_mask = feats.isnan().all(dim=-1).all(dim=-1)
+        feats = feats[~isnan_mask]
+        wav_lens = wav_lens[~isnan_mask]
+        from speechbrain.dataio.batch import PaddedData
+        data, lengths = batch.tokens
+        batch.tokens = PaddedData(data[~isnan_mask], lengths[~isnan_mask])
+
         x = self.modules.enc(feats)
         logits = self.modules.ctc_lin(x)
         p_ctc = self.hparams.log_softmax(logits)
