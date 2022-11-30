@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Recipe for fine-tuning Whisper encoder-decoder for ASR on Common Voice.
+"""Recipe for fine-tuning Whisper encoder-decoder with character vocabulary for ASR on Common Voice.
 
 To run this recipe, do the following:
 > python train.py hparams/<path-to-config>.yaml
@@ -21,29 +21,11 @@ import sys
 import torch
 import torchaudio
 from hyperpyyaml import load_hyperpyyaml
-from transformers.models.whisper.tokenization_whisper import LANGUAGES
 
 import speechbrain as sb
+from speechbrain.tokenizers.SentencePiece import SentencePiece
 from speechbrain.utils.data_utils import undo_padding
 from speechbrain.utils.distributed import run_on_main
-
-class ErrorStatsComputer:
-
-    def __init__(self):
-        self.preds = []
-        self.gts = []
-
-    def append(self, predicted_words, target_words):
-        self.preds += predicted_words
-        self.gts += target_words
-
-    def compute(self):
-        import jiwer
-        return jiwer.wer(self.gts, self.preds) * 100, jiwer.cer(self.gts, self.preds) * 100
-
-    def clear(self):
-        self.preds = []
-        self.gts = []
 
 
 class ASR(sb.core.Brain):
@@ -65,13 +47,13 @@ class ASR(sb.core.Brain):
         from speechbrain.dataio.batch import PaddedData
         data, lengths = batch.tokens_bos
         batch.tokens_bos = PaddedData(data[~isnan_mask], lengths[~isnan_mask])
-        data, lengths =  batch.tokens_eos
+        data, lengths = batch.tokens_eos
         batch.tokens_eos = PaddedData(data[~isnan_mask], lengths[~isnan_mask])
         data, lengths = batch.tokens
         batch.tokens = PaddedData(data[~isnan_mask], lengths[~isnan_mask])
         tokens_bos, tokens_bos_lens = batch.tokens_bos
 
-        pad_id = self.modules.whisper.model.config.pad_token_id
+        pad_id = self.hparams.pad_index
         abs_tokens_lens = (tokens_bos_lens * tokens_bos.shape[1]).long()
         pad_mask = (
             torch.arange(tokens_bos.shape[1], device=self.device)[None, :]
@@ -96,54 +78,19 @@ class ASR(sb.core.Brain):
     @torch.no_grad()
     def _greedy_decode(self, encoder_out):
         batch_size = encoder_out.shape[0]
-        (
-            startoftranscript_id,
-            transcribe_id,
-            notimestamps_id,
-        ) = self.tokenizer.prefix_tokens
-        pad_id = self.modules.whisper.model.config.pad_token_id
-        endoftext_id = self.tokenizer.eos_token_id
+        startoftranscript_id = self.hparams.bos_index
+        endoftext_id = self.hparams.eos_index
+        pad_id = self.hparams.pad_index
 
         hyps = torch.full(
-            (batch_size, self.hparams.max_gen_tokens + 4),
+            (batch_size, self.hparams.max_gen_tokens + 1),
             pad_id,
             dtype=torch.long,
             device=self.device,
         )
-        if self.hparams.forced_decoder_locale is None:
-            # Compute most likely language token IDs
-            hyps[:, 0] = startoftranscript_id
-            decoder_out = self.modules.whisper.forward_decoder(
-                encoder_out, hyps[:, :1]
-            )
-            logits = (
-                decoder_out
-                @ self.modules.whisper.model.decoder.embed_tokens.weight.T
-            )
-            lang_mask = torch.zeros(
-                logits.shape[-1], device=self.device, dtype=torch.bool
-            )
-            all_lang_tokens = [f"<|{l}|>" for l in LANGUAGES]
-            all_lang_tokens_ids = tokenizer.convert_tokens_to_ids(
-                all_lang_tokens
-            )
-            lang_mask[all_lang_tokens_ids] = True
-            logits[:, :, ~lang_mask] = -float("inf")
-            language_tokens_ids = logits.argmax(dim=-1)[:, 0]
-        else:
-            if self.hparams.forced_decoder_locale not in LANGUAGES:
-                raise NotImplementedError(
-                    f"Unsupported language: {self.hparams.forced_decoder_locale}"
-                )
-            language_tokens_ids = tokenizer.convert_tokens_to_ids(
-                f"<|{self.hparams.forced_decoder_locale}|>"
-            )
 
         # Prepare initial tokens in the right format
         hyps[:, 0] = startoftranscript_id
-        hyps[:, 1] = language_tokens_ids
-        hyps[:, 2] = transcribe_id
-        hyps[:, 3] = notimestamps_id
 
         # Autoregressive loop
         num_gen_tokens = 0
@@ -151,18 +98,18 @@ class ASR(sb.core.Brain):
             len(hyps), dtype=torch.bool, device=self.device
         )
         while (
-            hyps[unfinished_mask, num_gen_tokens + 3] != endoftext_id
+            hyps[unfinished_mask, num_gen_tokens] != endoftext_id
         ).any() and (num_gen_tokens < self.hparams.max_gen_tokens):
             decoder_out = self.modules.whisper.forward_decoder(
                 encoder_out[unfinished_mask],
-                hyps[unfinished_mask, : num_gen_tokens + 4],
+                hyps[unfinished_mask, : num_gen_tokens + 1],
             )
             logits = (
                 decoder_out
                 @ self.modules.whisper.model.decoder.embed_tokens.weight.T
             )
             gen_tokens = logits.argmax(dim=-1)[:, -1]
-            hyps[unfinished_mask, num_gen_tokens + 4] = gen_tokens
+            hyps[unfinished_mask, num_gen_tokens + 1] = gen_tokens
             unfinished_mask[unfinished_mask == True] = (
                 gen_tokens != endoftext_id
             )
@@ -192,25 +139,14 @@ class ASR(sb.core.Brain):
             tokens, tokens_lens = batch.tokens
 
             # Convert predicted tokens to words
-            predicted_words = self.tokenizer.batch_decode(
-                predicted_tokens, skip_special_tokens=True
-            )
+            predicted_words = self.tokenizer(predicted_tokens.cpu().tolist(), task="decode_from_list")
 
             # Convert target tokens to words
             tokens = undo_padding(tokens, tokens_lens)
-            target_words = self.tokenizer.batch_decode(
-                tokens, skip_special_tokens=True
-            )
-
-            predicted_words = [
-                self.english_normalizer(w) for w in predicted_words
-            ]
-            target_words = [self.english_normalizer(w) for w in target_words]
+            target_words = self.tokenizer(tokens, task="decode_from_list")
 
             self.wer_metric.append(ids, predicted_words, target_words)
             self.cer_metric.append(ids, predicted_words, target_words)
-
-            self.error_stats_computer.append(predicted_words, target_words)
 
         return loss
 
@@ -256,13 +192,12 @@ class ASR(sb.core.Brain):
             self.cer_metric = self.hparams.cer_computer()
             self.wer_metric = self.hparams.error_rate_computer()
             with open(
-                os.path.join(os.path.dirname(__file__), "english.json")
+                    os.path.join(os.path.dirname(__file__), "english.json")
             ) as f:
                 english_spelling_mapping = json.load(f)
             self.english_normalizer = self.hparams.english_normalizer(
                 english_spelling_mapping
             )
-            self.error_stats_computer = ErrorStatsComputer()
 
     def on_stage_end(self, stage, stage_loss, epoch):
         """Gets called at the end of a epoch."""
@@ -271,12 +206,8 @@ class ASR(sb.core.Brain):
         if stage == sb.Stage.TRAIN:
             self.train_stats = stage_stats
         else:
-            stage_stats["OCER"] = self.cer_metric.summarize("error_rate")
-            stage_stats["OWER"] = self.wer_metric.summarize("error_rate")
-            wer, cer = self.error_stats_computer.compute()
-            stage_stats["CER"] = cer
-            stage_stats["WER"] = wer
-
+            stage_stats["CER"] = self.cer_metric.summarize("error_rate")
+            stage_stats["WER"] = self.wer_metric.summarize("error_rate")
 
         # Perform end-of-iteration things, like annealing, logging, etc.
         if stage == sb.Stage.VALID:
@@ -369,21 +300,17 @@ def dataio_prepare(hparams, tokenizer):
     sb.dataio.dataset.add_dynamic_item(datasets, audio_pipeline)
 
     # 3. Define text pipeline:
-    @sb.utils.data_pipeline.takes("wrd", "locale")
+    @sb.utils.data_pipeline.takes("wrd")
     @sb.utils.data_pipeline.provides(
         "wrd", "tokens_list", "tokens_bos", "tokens_eos", "tokens"
     )
-    def text_pipeline(wrd, locale):
+    def text_pipeline(wrd):
         yield wrd
-        language = LANGUAGES.get(locale, "english")  # Use English if unknown
-        tokenizer.set_prefix_tokens(language=language)
-        encoded = tokenizer.encode(wrd)
-        tokenizer.set_prefix_tokens(language=None)
-        bos_id, tokens_list, eos_id = encoded[0], encoded[1:-1], encoded[-1]
+        tokens_list = tokenizer.sp.encode_as_ids(wrd)
         yield tokens_list
-        tokens_bos = torch.LongTensor([bos_id] + tokens_list)
+        tokens_bos = torch.LongTensor([hparams["bos_index"]] + (tokens_list))
         yield tokens_bos
-        tokens_eos = torch.LongTensor(tokens_list + [eos_id])
+        tokens_eos = torch.LongTensor(tokens_list + [hparams["eos_index"]])
         yield tokens_eos
         tokens = torch.LongTensor(tokens_list)
         yield tokens
@@ -434,7 +361,14 @@ if __name__ == "__main__":
     hparams["modules"]["whisper"].model.config.suppress_tokens = []
 
     # Defining tokenizer and loading it
-    tokenizer = hparams["tokenizer"]()
+    tokenizer = SentencePiece(
+        model_dir=hparams["save_dir"],
+        vocab_size=hparams["output_neurons"],
+        annotation_train=os.path.join(hparams["manifest_dir"], "train.csv"),
+        annotation_read="wrd",
+        model_type=hparams["token_type"],
+        character_coverage=hparams["character_coverage"],
+    )
 
     # Here we create the datasets objects as well as tokenization and encoding
     train_data, valid_data, test_data = dataio_prepare(hparams, tokenizer)
@@ -450,6 +384,12 @@ if __name__ == "__main__":
 
     # Adding objects to trainer:
     asr_brain.tokenizer = tokenizer
+
+    hparams["whisper"].model.decoder.embed_tokens = torch.nn.Embedding(
+        hparams["output_neurons"],
+        hparams["whisper_output_dim"],
+        padding_idx=hparams["pad_index"],
+    ).to(hparams["whisper"].model.decoder.embed_tokens.weight.device)
 
     # Training
     asr_brain.fit(

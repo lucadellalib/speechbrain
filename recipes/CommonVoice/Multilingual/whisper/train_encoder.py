@@ -311,7 +311,7 @@ if __name__ == "__main__":
     # Defining tokenizer and loading it
     tokenizer = SentencePiece(
         model_dir=hparams["save_dir"],
-        vocab_size=4,
+        vocab_size=hparams["output_neurons"],
         annotation_train=os.path.join(hparams["manifest_dir"], "train.csv"),
         annotation_read="wrd",
         model_type=hparams["token_type"],

@@ -68,7 +68,7 @@ freeze_whisper: False
 activation: !name:torch.nn.LeakyReLU
 dropout: 0.15
 dnn_neurons: 1024
-output_neurons: 1218
+output_neurons: 574
 
 # Decoding parameters
 blank_index: 0  # index(blank/unk) = 0
