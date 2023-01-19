@@ -43,7 +43,7 @@ sample_rate: 8000
 
 # Training parameters
 N_epochs: 200
-batch_size: 1
+batch_size: 8
 lr: 0.00015
 clip_grad_norm: 5
 loss_upper_lim: 999999  # this is the upper limit for an acceptable loss
@@ -103,7 +103,7 @@ MaskNet: !new:s4.net.S4Net
     input_size: 256
     output_size: !ref <num_spks> * 256
     num_layers: 8  #1 for local debugging
-    state_size: 512  #4 for local debugging
+    state_size: 128  #4 for local debugging
 
 Decoder: !new:speechbrain.lobes.models.dual_path.Decoder
     in_channels: !ref <N_encoder_out>
