@@ -837,3 +837,14 @@ class PositionalwiseFeedForward(nn.Module):
         x = x.permute(1, 0, 2)
 
         return x
+
+
+if __name__ == "__main__":
+    L, B, N = 10, 4, 100
+    mega = MultiheadAttention(
+        5, N,
+    )
+
+    input = torch.rand(B, L, N)
+    output = mega(input, input, input, return_attn_weights=True)
+    print(output[1].shape)

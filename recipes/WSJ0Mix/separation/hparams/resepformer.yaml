@@ -106,6 +106,7 @@ intra_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormand
     norm_before: True
     use_norm: True
     use_skip: True
+    attention_type: "fairseqMEGA"
 
 mem_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormandskip
     num_layers: 8
@@ -117,6 +118,7 @@ mem_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormandsk
     norm_before: True
     use_norm: True
     use_skip: True
+    attention_type: "fairseqMEGA"
 
 MaskNet: !new:speechbrain.lobes.models.resepformer.ResourceEfficientSeparator
     input_dim: !ref <N_encoder_out>

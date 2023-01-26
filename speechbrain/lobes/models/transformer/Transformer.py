@@ -15,6 +15,7 @@ import numpy as np
 from .Conformer import ConformerEncoder
 from speechbrain.nnet.activations import Swish
 from speechbrain.nnet.attention import RelPosEncXL
+from speechbrain.nnet.fairseq_mega import MovingAverageGatedAttention
 
 
 class TransformerInterface(nn.Module):
@@ -114,7 +115,7 @@ class TransformerInterface(nn.Module):
         self.decoder_kdim = decoder_kdim
         self.decoder_vdim = decoder_vdim
 
-        assert attention_type in ["regularMHA", "RelPosMHAXL"]
+        assert attention_type in ["regularMHA", "RelPosMHAXL", "fairseqMEGA"]
         assert positional_encoding in ["fixed_abs_sine", None]
 
         assert (
@@ -309,6 +310,11 @@ class TransformerEncoderLayer(nn.Module):
                 d_model, nhead, dropout, mask_pos_future=causal
             )
 
+        elif attention_type == "fairseqMEGA":
+            self.self_att = MovingAverageGatedAttention(
+                d_model, zdim=32, hdim=32, ndim=nhead or 16, dropout=dropout,
+            )
+
         self.pos_ffn = sb.nnet.attention.PositionalwiseFeedForward(
             d_ffn=d_ffn,
             input_size=d_model,
@@ -346,14 +352,22 @@ class TransformerEncoderLayer(nn.Module):
         else:
             src1 = src
 
-        output, self_attn = self.self_att(
-            src1,
-            src1,
-            src1,
-            attn_mask=src_mask,
-            key_padding_mask=src_key_padding_mask,
-            pos_embs=pos_embs,
-        )
+        if isinstance(self.self_att, MovingAverageGatedAttention):
+            output, self_attn = self.self_att(
+                src1,
+                attn_mask=src_mask,
+                padding_mask=src_key_padding_mask,
+                return_attn_weights=True,
+            )
+        else:
+            output, self_attn = self.self_att(
+                src1,
+                src1,
+                src1,
+                attn_mask=src_mask,
+                key_padding_mask=src_key_padding_mask,
+                pos_embs=pos_embs,
+            )
 
         # add & norm
         src = src + self.dropout1(output)
@@ -554,6 +568,14 @@ class TransformerDecoderLayer(nn.Module):
                 d_model, nhead, dropout, mask_pos_future=causal
             )
 
+        elif attention_type == "fairseqMEGA":
+            self.self_attn = MovingAverageGatedAttention(
+                d_model, zdim=32, hdim=32, ndim=nhead or 16, dropout=dropout,
+            )
+            self.mutihead_attn = MovingAverageGatedAttention(
+                d_model, zdim=32, hdim=32, ndim=nhead or 16, dropout=dropout,
+            )
+
         self.pos_ffn = sb.nnet.attention.PositionalwiseFeedForward(
             d_ffn=d_ffn,
             input_size=d_model,
@@ -604,14 +626,22 @@ class TransformerDecoderLayer(nn.Module):
             tgt1 = tgt
 
         # self-attention over the target sequence
-        tgt2, self_attn = self.self_attn(
-            query=tgt1,
-            key=tgt1,
-            value=tgt1,
-            attn_mask=tgt_mask,
-            key_padding_mask=tgt_key_padding_mask,
-            pos_embs=pos_embs_tgt,
-        )
+        if isinstance(self.self_attn, MovingAverageGatedAttention):
+            tgt2, self_attn = self.self_attn(
+                tgt1,
+                attn_mask=tgt_mask,
+                padding_mask=tgt_key_padding_mask,
+                return_attn_weights=True,
+            )
+        else:
+            tgt2, self_attn = self.self_attn(
+                query=tgt1,
+                key=tgt1,
+                value=tgt1,
+                attn_mask=tgt_mask,
+                key_padding_mask=tgt_key_padding_mask,
+                pos_embs=pos_embs_tgt,
+            )
 
         # add & norm
         tgt = tgt + self.dropout1(tgt2)
@@ -625,14 +655,22 @@ class TransformerDecoderLayer(nn.Module):
 
         # multi-head attention over the target sequence and encoder states
 
-        tgt2, multihead_attention = self.mutihead_attn(
-            query=tgt1,
-            key=memory,
-            value=memory,
-            attn_mask=memory_mask,
-            key_padding_mask=memory_key_padding_mask,
-            pos_embs=pos_embs_src,
-        )
+        if isinstance(self.mutihead_attn, MovingAverageGatedAttention):
+            tgt2, multihead_attention = self.mutihead_attn(
+                tgt1,
+                attn_mask=memory_mask,
+                padding_mask=memory_key_padding_mask,
+                return_attn_weights=True,
+            )
+        else:
+            tgt2, multihead_attention = self.mutihead_attn(
+                query=tgt1,
+                key=memory,
+                value=memory,
+                attn_mask=memory_mask,
+                key_padding_mask=memory_key_padding_mask,
+                pos_embs=pos_embs_src,
+            )
 
         # add & norm
         tgt = tgt + self.dropout2(tgt2)
@@ -856,3 +894,19 @@ def get_lookahead_mask(padded_input):
         .masked_fill(mask == 1, float(0.0))
     )
     return mask.detach().to(padded_input.device)
+
+
+if __name__ == "__main__":
+    import torch
+    x = torch.rand((8, 60, 512))
+    net = TransformerEncoderLayer(512, 8, d_model=512, attention_type="fairseqMEGA")
+    output = net(x)
+    print(output[0].shape)
+
+    """
+    src = torch.rand((8, 60, 512))
+    tgt = torch.rand((8, 60, 512))
+    net = TransformerDecoder(1, 8, 1024, d_model=512, attention_type="fairseqMEGA")
+    output, _, _ = net(src, tgt)
+    print(output.shape)
+    """
