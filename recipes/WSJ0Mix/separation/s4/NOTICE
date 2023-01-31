@@ -2,7 +2,7 @@ This recipe incorporates components from the projects listed below. The original
 
 #############################################################################################################################################################
 
-1. Code in separation/s4 adapted from:
+1. Code in {cauchy.py, models.py} adapted from:
    https://github.com/HazyResearch/state-spaces/tree/d589d982216485cce0a46bbe7605fe75c03d3223
 
 Copyright [yyyy] [name of copyright owner]

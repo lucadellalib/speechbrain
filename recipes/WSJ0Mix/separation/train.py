@@ -6,6 +6,8 @@ To run this recipe, do the following:
 > python train.py hparams/sepformer.yaml
 > python train.py hparams/dualpath_rnn.yaml
 > python train.py hparams/convtasnet.yaml
+> python train.py hparams/seps4.yaml
+> python train.py hparams/seps4-dualpath.yaml
 
 The experiment file is flexible enough to support different neural
 networks. By properly changing the parameter files, you can try
@@ -19,6 +21,7 @@ Authors
  * Samuele Cornell 2020
  * Mirko Bronzi 2020
  * Jianyuan Zhong 2020
+ * Luca Della Libera 2023
 """
 
 import os
@@ -349,46 +352,47 @@ class Separation(sb.Brain):
                         )
 
                     # Compute SI-SNR
-                    sisnr = self.compute_objectives(predictions, targets)
+                    sisnrs = self.compute_objectives(predictions, targets)
 
                     # Compute SI-SNR improvement
-                    mixture_signal = torch.stack(
+                    mixture_signals = torch.stack(
                         [mixture] * self.hparams.num_spks, dim=-1
                     )
-                    mixture_signal = mixture_signal.to(targets.device)
-                    sisnr_baseline = self.compute_objectives(
-                        mixture_signal, targets
+                    mixture_signals = mixture_signals.to(targets.device)
+                    sisnr_baselines = self.compute_objectives(
+                        mixture_signals, targets
                     )
-                    sisnr_i = sisnr - sisnr_baseline
+                    sisnrs_i = sisnrs - sisnr_baselines
 
-                    # Compute SDR
-                    sdr, _, _, _ = bss_eval_sources(
-                        targets[0].t().cpu().numpy(),
-                        predictions[0].t().detach().cpu().numpy(),
-                    )
+                    for target, prediction, mixture_signal, sisnr, sisnr_i in zip(
+                        targets, predictions, mixture_signals, sisnrs, sisnrs_i,
+                    ):
+                        target = target.t().cpu().numpy()
+                        prediction = prediction.t().cpu().numpy()
+                        mixture_signal = mixture_signal.t().cpu().numpy()
+                        sisnr = sisnr.item()
+                        sisnr_i = sisnr_i.item()
 
-                    sdr_baseline, _, _, _ = bss_eval_sources(
-                        targets[0].t().cpu().numpy(),
-                        mixture_signal[0].t().detach().cpu().numpy(),
-                    )
+                        # Compute SDR
+                        sdr, _, _, _ = bss_eval_sources(target, prediction)
+                        sdr_baseline, _, _, _ = bss_eval_sources(target, mixture_signal)
+                        sdr_i = sdr.mean() - sdr_baseline.mean()
 
-                    sdr_i = sdr.mean() - sdr_baseline.mean()
+                        # Saving on a csv file
+                        row = {
+                            "snt_id": snt_id[0],
+                            "sdr": sdr.mean(),
+                            "sdr_i": sdr_i,
+                            "si-snr": -sisnr,
+                            "si-snr_i": -sisnr_i,
+                        }
+                        writer.writerow(row)
 
-                    # Saving on a csv file
-                    row = {
-                        "snt_id": snt_id[0],
-                        "sdr": sdr.mean(),
-                        "sdr_i": sdr_i,
-                        "si-snr": -sisnr.item(),
-                        "si-snr_i": -sisnr_i.item(),
-                    }
-                    writer.writerow(row)
-
-                    # Metric Accumulation
-                    all_sdrs.append(sdr.mean())
-                    all_sdrs_i.append(sdr_i.mean())
-                    all_sisnrs.append(-sisnr.item())
-                    all_sisnrs_i.append(-sisnr_i.item())
+                        # Metric Accumulation
+                        all_sdrs.append(sdr.mean())
+                        all_sdrs_i.append(sdr_i.mean())
+                        all_sisnrs.append(-sisnr)
+                        all_sisnrs_i.append(-sisnr_i)
 
                 row = {
                     "snt_id": "avg",
@@ -538,7 +542,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Data preparation
-    from recipes.WSJ0Mix.prepare_data import prepare_wsjmix  # noqa
+    from prepare_data import prepare_wsjmix  # noqa
 
     run_on_main(
         prepare_wsjmix,

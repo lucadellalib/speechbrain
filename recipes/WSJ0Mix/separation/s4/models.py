@@ -23,7 +23,10 @@ from functools import partial
 import opt_einsum as oe
 
 
-__all__ = ["S4Net"]
+__all__ = [
+    "S4Net",
+    "S4MaskNet",
+]
 
 
 contract = oe.contract
@@ -36,7 +39,7 @@ log = logging.getLogger(__name__)
 
 try:  # Try CUDA extension
     has_cauchy_extension = True
-    from .cauchy import cauchy_mult
+    from cauchy import cauchy_mult
 except:
     log.warn(
         "CUDA extension for cauchy multiplication not found. Install by going to extensions/cauchy/ and running `python setup.py install`. This should speed up end-to-end training by 10-50%"
@@ -1806,7 +1809,7 @@ class S4Block(nn.Module):
 
 class S4Net(nn.Module):
     def __init__(
-        self, input_size, output_size, num_layers=1, state_size=64, **kwargs
+        self, input_size, output_size, num_layers=1, state_size=64, **kwargs,
     ):
         super().__init__()
         self.input_size = input_size
@@ -1822,10 +1825,28 @@ class S4Net(nn.Module):
         self.layers.append(S4Block(input_size, output_size, state_size))
 
     def forward(self, input, *args, **kwargs):
-        out = input
+        output = input
         for layer in self.layers:
-            out, _ = layer(out, *args, **kwargs)
-        return out
+            output, _ = layer(output, *args, **kwargs)
+        return output
+
+
+class S4MaskNet(S4Net):
+    def __init__(self, *args, num_spks=2, output_activation=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.output_activation = output_activation
+        self.num_spks = num_spks
+
+    def forward(self, input, *args, **kwargs):
+        output = input.movedim(-1, -2)
+        for layer in self.layers:
+            output, _ = layer(output, *args, **kwargs)
+        output = output.movedim(-1, -2)
+        if self.output_activation is not None:
+            output = self.output_activation(output)
+        B, C, L = output.shape
+        output = output.reshape(self.num_spks, B, -1, L)
+        return output
 
 
 # Quick test

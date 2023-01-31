@@ -1,5 +1,1 @@
-einops==0.6.0
 mir-eval==0.6
-opt-einsum==3.3.0
-pykeops==2.1.1
-git+https://github.com/HazyResearch/state-spaces.git@d589d982216485cce0a46bbe7605fe75c03d3223#subdirectory=extensions/cauchy

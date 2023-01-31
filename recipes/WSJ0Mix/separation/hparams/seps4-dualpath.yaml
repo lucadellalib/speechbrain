@@ -1,5 +1,5 @@
 # ################################
-# Model: SepS4 for source separation
+# Model: SepS4 with dual path architecture for source separation
 # https://arxiv.org/abs/2111.00396
 # Dataset : WSJ0-2mix and WSJ0-3mix
 # ################################
@@ -22,7 +22,7 @@ data_folder: !PLACEHOLDER
 # you can do this conversion with the script ../meta/preprocess_dynamic_mixing.py
 base_folder_dm: /yourpath/wsj0-processed/si_tr_s/
 
-experiment_name: seps4
+experiment_name: seps4-dualpath
 output_folder: !ref results/<experiment_name>/<seed>
 train_log: !ref <output_folder>/train_log.txt
 save_folder: !ref <output_folder>/save
@@ -43,7 +43,7 @@ sample_rate: 8000
 
 # Training parameters
 N_epochs: 200
-batch_size: 12
+batch_size: 1
 lr: 0.00015
 clip_grad_norm: 5
 loss_upper_lim: 999999  # this is the upper limit for an acceptable loss
@@ -99,13 +99,29 @@ Encoder: !new:speechbrain.lobes.models.dual_path.Encoder
     out_channels: !ref <N_encoder_out>
 
 
-MaskNet: !new:s4.models.S4MaskNet
+SBtfintra: !new:s4.models.S4Net
     input_size: 256
-    num_spks: !ref <num_spks>
-    output_size: !ref <num_spks> * 256
-    num_layers: 16  # 1 for local debugging
+    output_size: !ref <out_channels>
+    num_layers: 8  # 1 for local debugging
     state_size: 128  # 4 for local debugging
-    output_activation: !name:torch.nn.functional.relu
+
+SBtfinter: !new:s4.models.S4Net
+    input_size: 256
+    output_size: !ref <out_channels>
+    num_layers: 8  # 1 for local debugging
+    state_size: 128  # 4 for local debugging
+
+MaskNet: !new:speechbrain.lobes.models.dual_path.Dual_Path_Model
+    num_spks: !ref <num_spks>
+    in_channels: !ref <N_encoder_out>
+    out_channels: !ref <out_channels>
+    num_layers: 2
+    K: 250
+    intra_model: !ref <SBtfintra>
+    inter_model: !ref <SBtfinter>
+    norm: ln
+    linear_layer_after_inter_intra: False
+    skip_around_intra: True
 
 Decoder: !new:speechbrain.lobes.models.dual_path.Decoder
     in_channels: !ref <N_encoder_out>
