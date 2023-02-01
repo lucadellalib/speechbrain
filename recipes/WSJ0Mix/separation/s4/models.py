@@ -24,8 +24,8 @@ import opt_einsum as oe
 
 
 __all__ = [
-    "S4Net",
     "S4MaskNet",
+    "S4Net",
 ]
 
 
@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 
 try:  # Try CUDA extension
     has_cauchy_extension = True
-    from cauchy import cauchy_mult
+    from .cauchy import cauchy_mult
 except:
     log.warn(
         "CUDA extension for cauchy multiplication not found. Install by going to extensions/cauchy/ and running `python setup.py install`. This should speed up end-to-end training by 10-50%"
