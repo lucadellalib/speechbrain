@@ -1838,14 +1838,15 @@ class S4MaskNet(S4Net):
         self.num_spks = num_spks
 
     def forward(self, input, *args, **kwargs):
+        # input: B x C x L
         output = input.movedim(-1, -2)
+        # output: B x L x C
         for layer in self.layers:
             output, _ = layer(output, *args, **kwargs)
-        output = output.movedim(-1, -2)
         if self.output_activation is not None:
             output = self.output_activation(output)
-        B, C, L = output.shape
-        output = output.reshape(self.num_spks, B, -1, L)
+        B, L, C = output.shape
+        output = output.movedim(-1, 0).reshape(self.num_spks, -1, B, L).movedim(1, -2)
         return output
 
 
