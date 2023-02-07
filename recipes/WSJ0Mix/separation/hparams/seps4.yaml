@@ -43,8 +43,8 @@ sample_rate: 8000
 
 # Training parameters
 N_epochs: 200
-batch_size: 1
-lr: 0.00015
+batch_size: 16
+lr: 0.001
 clip_grad_norm: 5
 loss_upper_lim: 999999  # this is the upper limit for an acceptable loss
 # if True, the training sequences are cut to a specified length
@@ -81,8 +81,8 @@ threshold_byloss: True
 threshold: -30
 
 # Encoder parameters
-N_encoder_out: 256
-out_channels: 256
+N_encoder_out: 128
+out_channels: 128
 kernel_size: 16
 kernel_stride: 8
 
@@ -99,13 +99,11 @@ Encoder: !new:speechbrain.lobes.models.dual_path.Encoder
     out_channels: !ref <N_encoder_out>
 
 
-MaskNet: !new:s4.models.S4MaskNet
-    input_size: 256
+MaskNet: !new:ssm.seps4.SashimiMaskNet
     num_spks: !ref <num_spks>
-    output_size: !ref <num_spks> * 256
-    num_layers: 16  # 1 for local debugging
-    state_size: 128  # 4 for local debugging
-    output_activation: !name:torch.nn.functional.relu
+    d_model: !ref <out_channels>
+    n_layers: 4
+    output_activation: leaky_relu
 
 Decoder: !new:speechbrain.lobes.models.dual_path.Decoder
     in_channels: !ref <N_encoder_out>

@@ -8,10 +8,9 @@ Authors
 """
 
 # Adapted from:
-# https://github.com/HazyResearch/state-spaces/blob/d589d982216485cce0a46bbe7605fe75c03d3223/extensions/cauchy/cauchy.py#L1
+# https://github.com/HazyResearch/state-spaces/blob/d589d982216485cce0a46bbe7605fe75c03d3223/extensions/cauchy/cauchy.py
 
 import torch
-
 from einops import rearrange
 
 from cauchy_mult import (

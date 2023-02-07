@@ -8,24 +8,25 @@ Authors
 """
 
 # Adapted from:
-# https://github.com/HazyResearch/state-spaces/blob/d589d982216485cce0a46bbe7605fe75c03d3223/src/models/s4/s4.py#L1
+# https://github.com/HazyResearch/state-spaces/blob/d589d982216485cce0a46bbe7605fe75c03d3223/src/models/s4/s4.py
 
 import logging
 import math
+from functools import partial
 
 import numpy as np
+import opt_einsum as oe
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from einops import rearrange, repeat
-from functools import partial
-import opt_einsum as oe
 
 
 __all__ = [
-    "S4MaskNet",
-    "S4Net",
+    "Activation",
+    "DropoutNd",
+    "LinearActivation",
+    "S4",
 ]
 
 
@@ -38,8 +39,12 @@ log = logging.getLogger(__name__)
 """ Cauchy and Vandermonde kernels """
 
 try:  # Try CUDA extension
+    import os
+    import sys
+
+    sys.path.append(os.path.dirname(__file__))
     has_cauchy_extension = True
-    from .cauchy import cauchy_mult
+    from cauchy import cauchy_mult
 except:
     log.warn(
         "CUDA extension for cauchy multiplication not found. Install by going to extensions/cauchy/ and running `python setup.py install`. This should speed up end-to-end training by 10-50%"
@@ -197,6 +202,8 @@ def Activation(activation=None, dim=-1):
         return nn.Tanh()
     elif activation == "relu":
         return nn.ReLU()
+    elif activation == "leaky_relu":
+        return nn.LeakyReLU()
     elif activation == "gelu":
         return nn.GELU()
     elif activation in ["swish", "silu"]:
@@ -1772,126 +1779,3 @@ class S4(nn.Module):
     @property
     def d_output(self):
         return self.d_model
-
-
-class S4Block(nn.Module):
-    def __init__(self, input_size, output_size, state_size=64, **kwargs):
-        super().__init__()
-        self.layer_norm1 = nn.LayerNorm(input_size)
-        self.s4 = S4(
-            input_size,
-            state_size,
-            transposed=False,
-            activation="gelu",
-            postact="id",
-            **kwargs,
-        )
-        self.linear1 = nn.Linear(input_size, input_size)
-        self.layer_norm2 = nn.LayerNorm(input_size)
-        self.linear = nn.Linear(input_size, input_size)
-        self.gelu = nn.GELU()
-        self.projection = nn.Linear(input_size, output_size)
-        self.output_linear = nn.Linear(input_size, output_size)
-
-    def forward(self, input, *args, **kwargs):
-        # B x L x S
-        first_out = self.layer_norm1(input)
-        first_out, state = self.s4(first_out, *args, **kwargs)
-        first_out = self.linear1(first_out)
-        first_out += input
-        second_out = self.layer_norm2(first_out)
-        second_out = self.linear(second_out)
-        second_out = self.gelu(second_out)
-        second_out = self.output_linear(second_out)
-        second_out += self.projection(first_out)
-        return second_out, state
-
-
-class S4Net(nn.Module):
-    def __init__(
-        self, input_size, output_size, num_layers=1, state_size=64, **kwargs,
-    ):
-        super().__init__()
-        self.input_size = input_size
-        self.output_size = output_size
-        self.num_layers = num_layers
-        self.state_size = state_size
-        self.layers = nn.ModuleList(
-            [
-                S4Block(input_size, input_size, state_size, **kwargs)
-                for _ in range(num_layers - 1)
-            ]
-        )
-        self.layers.append(S4Block(input_size, output_size, state_size))
-
-    def forward(self, input, *args, **kwargs):
-        output = input
-        for layer in self.layers:
-            output, _ = layer(output, *args, **kwargs)
-        return output
-
-
-class S4MaskNet(S4Net):
-    def __init__(self, *args, num_spks=2, output_activation=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.output_activation = output_activation
-        self.num_spks = num_spks
-
-    def forward(self, input, *args, **kwargs):
-        # input: B x C x L
-        output = input.movedim(-1, -2)
-        # output: B x L x C
-        for layer in self.layers:
-            output, _ = layer(output, *args, **kwargs)
-        if self.output_activation is not None:
-            output = self.output_activation(output)
-        B, L, C = output.shape
-        output = output.movedim(-1, 0).reshape(self.num_spks, -1, B, L).movedim(1, -2)
-        return output
-
-
-# Quick test
-if __name__ == "__main__":
-    batch_size = 4
-    sequence_length = 8
-    input_size = 2
-    output_size = 40
-    state_size = 64
-    lr = 0.1
-
-    model = S4Net(
-        input_size, output_size, 2, state_size, lr=min(0.001, lr)
-    ).cuda()
-    torch.manual_seed(0)
-
-    # All parameters in the model
-    all_parameters = list(model.parameters())
-
-    # General parameters don't contain the special _optim key
-    params = [p for p in all_parameters if not hasattr(p, "_optim")]
-
-    # Create an optimizer with the general parameters
-    optimizer = torch.optim.AdamW(params, lr=lr, weight_decay=0.01)
-
-    # Add parameters with special hyperparameters
-    hps = [getattr(p, "_optim") for p in all_parameters if hasattr(p, "_optim")]
-    hps = [
-        dict(s)
-        for s in sorted(
-            list(dict.fromkeys(frozenset(hp.items()) for hp in hps))
-        )
-    ]  # Unique dicts
-    for hp in hps:
-        params = [p for p in all_parameters if getattr(p, "_optim", None) == hp]
-        optimizer.add_param_group({"params": params, **hp})
-    print(optimizer)
-
-    input = torch.rand(batch_size, sequence_length, input_size).cuda()
-    output = model(input).cuda()
-    loss = output.sum()
-    loss.backward()
-    print(output)
-    print(output.shape)
-    print(model.layers[0].s4.kernel.kernel.B[0])
-    optimizer.step()
-    print(model.layers[0].s4.kernel.kernel.B[0])
