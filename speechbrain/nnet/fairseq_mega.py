@@ -506,6 +506,17 @@ def softmax(x, dim: int, onnx_trace: bool = False):
 class MovingAverageGatedAttention(nn.Module):
     """Exponential Moving Average Gated Attention.
     See "" for more details.
+
+    Examples
+    --------
+    >>> L, B, N = 10, 4, 100
+    >>> mega = MovingAverageGatedAttention(
+    ...    N, 2, 4, 5
+    ... )
+    >>> input = torch.rand(B, L, N)
+    >>> output = mega(input, return_attn_weights=True)
+    >>> print(output[1].shape)
+
     """
 
     def __init__(
@@ -843,13 +854,3 @@ class MovingAverageGatedAttention(nn.Module):
         return 'edim={}, zdim={}, hdim={}, ndim={}, chunk={}, attn_act={}, prenorm={}'.format(self.embed_dim, self.zdim,
                                                                                   self.hdim, self.ndim, self.chunk_size,
                                                                                   self.attention_activation, self.prenorm)
-
-if __name__ == "__main__":
-    L, B, N = 10, 4, 100
-    mega = MovingAverageGatedAttention(
-        N, 2, 4, 5
-    )
-
-    input = torch.rand(B, L, N)
-    output = mega(input, return_attn_weights=True)
-    print(output[1].shape)
