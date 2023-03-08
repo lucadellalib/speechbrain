@@ -587,15 +587,15 @@ if __name__ == "__main__":
     # Logger info
     logger = logging.getLogger(__name__)
 
-    # Profile
-    profile(hparams)
-
     # Create experiment directory
     sb.create_experiment_directory(
         experiment_directory=hparams["output_folder"],
         hyperparams_to_save=hparams_file,
         overrides=overrides,
     )
+
+    # Profile
+    profile(hparams)
 
     # Check if wsj0_tr is set with dynamic mixing
     if hparams["dynamic_mixing"] and not os.path.exists(
