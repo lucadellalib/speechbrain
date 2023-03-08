@@ -19,6 +19,7 @@ Authors
  * Samuele Cornell 2020
  * Mirko Bronzi 2020
  * Jianyuan Zhong 2020
+ * Luca Della Libera 2023
 """
 
 import os
@@ -555,8 +556,12 @@ def profile(hparams):
     time_results = []
     for seconds in [1, 2, 4, 8, 16]:
         print(f"Trying {seconds} seconds long input")
-        inputs = torch.rand(1, hparams["sample_rate"] * seconds).to(run_opts["device"])
-        macs, params = ptflops.get_model_complexity_info(model, tuple(inputs.shape[1:]), as_strings=True)
+        inputs = torch.rand(1, hparams["sample_rate"] * seconds).to(
+            run_opts["device"]
+        )
+        macs, params = ptflops.get_model_complexity_info(
+            model, tuple(inputs.shape[1:]), as_strings=True
+        )
         t1 = time.time()
         model(inputs)
         torch.cuda.synchronize()
@@ -630,9 +635,7 @@ if __name__ == "__main__":
             if not os.path.exists(
                 os.path.normpath(hparams["base_folder_dm"]) + "_processed"
             ):
-                from preprocess_dynamic_mixing import (
-                    resample_folder,
-                )
+                from preprocess_dynamic_mixing import resample_folder
 
                 print("Resampling the base folder")
                 run_on_main(
