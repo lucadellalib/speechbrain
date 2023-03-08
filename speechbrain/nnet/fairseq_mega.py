@@ -511,7 +511,7 @@ class MovingAverageGatedAttention(nn.Module):
     --------
     >>> L, B, N = 10, 4, 100
     >>> mega = MovingAverageGatedAttention(
-    ...    N, 2, 4, 5
+    ...    N, 5
     ... )
     >>> input = torch.rand(B, L, N)
     >>> output = mega(input, return_attn_weights=True)
@@ -522,9 +522,9 @@ class MovingAverageGatedAttention(nn.Module):
     def __init__(
         self,
         embed_dim,
-        zdim,
-        hdim,
         ndim,
+        zdim=32,
+        hdim=32,
         dropout=0.0,
         attention_dropout=0.0,
         hidden_dropout=0.0,
@@ -544,9 +544,9 @@ class MovingAverageGatedAttention(nn.Module):
         super().__init__()
 
         self.embed_dim = embed_dim
+        self.ndim = ndim
         self.hdim = hdim
         self.zdim = zdim
-        self.ndim = ndim
         self.activation = get_activation_fn(activation=activation)
         self.attention_activation = attention_activation
         self.scaling = self.zdim ** -0.5 if attention_activation == 'softmax' else None

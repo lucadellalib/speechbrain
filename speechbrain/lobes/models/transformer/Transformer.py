@@ -312,7 +312,7 @@ class TransformerEncoderLayer(nn.Module):
 
         elif attention_type == "fairseqMEGA":
             self.self_att = MovingAverageGatedAttention(
-                d_model, zdim=32, hdim=32, ndim=nhead or 16, dropout=dropout,
+                d_model, ndim=nhead, dropout=dropout,
             )
 
         self.pos_ffn = sb.nnet.attention.PositionalwiseFeedForward(
@@ -570,10 +570,10 @@ class TransformerDecoderLayer(nn.Module):
 
         elif attention_type == "fairseqMEGA":
             self.self_attn = MovingAverageGatedAttention(
-                d_model, zdim=32, hdim=32, ndim=nhead or 16, dropout=dropout,
+                d_model, ndim=nhead, dropout=dropout,
             )
             self.mutihead_attn = MovingAverageGatedAttention(
-                d_model, zdim=32, hdim=32, ndim=nhead or 16, dropout=dropout,
+                d_model, ndim=nhead, dropout=dropout,
             )
 
         self.pos_ffn = sb.nnet.attention.PositionalwiseFeedForward(
@@ -894,19 +894,3 @@ def get_lookahead_mask(padded_input):
         .masked_fill(mask == 1, float(0.0))
     )
     return mask.detach().to(padded_input.device)
-
-
-if __name__ == "__main__":
-    import torch
-    x = torch.rand((8, 60, 512))
-    net = TransformerEncoderLayer(512, 8, d_model=512, attention_type="fairseqMEGA")
-    output = net(x)
-    print(output[0].shape)
-
-    """
-    src = torch.rand((8, 60, 512))
-    tgt = torch.rand((8, 60, 512))
-    net = TransformerDecoder(1, 8, 1024, d_model=512, attention_type="fairseqMEGA")
-    output, _, _ = net(src, tgt)
-    print(output.shape)
-    """

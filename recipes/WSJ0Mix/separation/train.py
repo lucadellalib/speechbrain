@@ -508,8 +508,74 @@ def dataio_prep(hparams):
     return train_data, valid_data, test_data
 
 
-if __name__ == "__main__":
+def profile(hparams):
+    # Profile
+    class ProfilableModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.Encoder = hparams["Encoder"]
+            self.MaskNet = hparams["MaskNet"]
+            self.Decoder = hparams["Decoder"]
+            self.num_spks = hparams["num_spks"]
 
+        @torch.no_grad()
+        def forward(self, mix):
+            # Separation
+            mix_w = self.Encoder(mix)
+            est_mask = self.MaskNet(mix_w)
+            mix_w = torch.stack([mix_w] * self.num_spks)
+            sep_h = mix_w * est_mask
+
+            # Decoding
+            est_source = torch.cat(
+                [
+                    self.Decoder(sep_h[i]).unsqueeze(-1)
+                    for i in range(self.num_spks)
+                ],
+                dim=-1,
+            )
+
+            # T changed after conv1d in encoder, fix it here
+            T_origin = mix.size(1)
+            T_est = est_source.size(1)
+            if T_origin > T_est:
+                est_source = F.pad(est_source, (0, 0, 0, T_origin - T_est))
+            else:
+                est_source = est_source[:, :T_origin, :]
+
+            return est_source
+
+    import time
+    import ptflops
+    from torchinfo import summary
+
+    model = ProfilableModel().eval().to(run_opts["device"])
+    macs_results = []
+    mem_results = []
+    time_results = []
+    for seconds in [1, 2, 4, 8, 16]:
+        print(f"Trying {seconds} seconds long input")
+        inputs = torch.rand(1, hparams["sample_rate"] * seconds).to(run_opts["device"])
+        macs, params = ptflops.get_model_complexity_info(model, tuple(inputs.shape[1:]), as_strings=True)
+        t1 = time.time()
+        model(inputs)
+        torch.cuda.synchronize()
+        t2 = time.time()
+        max_mem = torch.cuda.max_memory_allocated("cuda") / 10 ** 9
+        macs_results.append(macs)
+        mem_results.append(max_mem)
+        time_results.append(t2 - t1)
+
+    results = {
+        "macs": macs_results,
+        "memory": mem_results,
+        "time": time_results,
+    }
+    logging.info(summary(model, input_size=(1, 64000)))
+    logging.info(results)
+
+
+if __name__ == "__main__":
     # Load hyperparameters file with command-line overrides
     hparams_file, run_opts, overrides = sb.parse_arguments(sys.argv[1:])
     with open(hparams_file) as fin:
@@ -520,6 +586,9 @@ if __name__ == "__main__":
 
     # Logger info
     logger = logging.getLogger(__name__)
+
+    # Profile
+    profile(hparams)
 
     # Create experiment directory
     sb.create_experiment_directory(
@@ -538,7 +607,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Data preparation
-    from recipes.WSJ0Mix.prepare_data import prepare_wsjmix  # noqa
+    from prepare_data import prepare_wsjmix  # noqa
 
     run_on_main(
         prepare_wsjmix,
@@ -561,7 +630,7 @@ if __name__ == "__main__":
             if not os.path.exists(
                 os.path.normpath(hparams["base_folder_dm"]) + "_processed"
             ):
-                from recipes.WSJ0Mix.meta.preprocess_dynamic_mixing import (
+                from preprocess_dynamic_mixing import (
                     resample_folder,
                 )
 
@@ -637,3 +706,6 @@ if __name__ == "__main__":
     # Eval
     separator.evaluate(test_data, min_key="si-snr")
     separator.save_results(test_data)
+
+    # Profile
+    profile(hparams)
