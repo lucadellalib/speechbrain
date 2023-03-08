@@ -1,12 +1,12 @@
 # ################################
-# Model: RE-SepFormer for speech separation
+# Model: Mega RE-SepFormer for speech separation
 # Dataset : WSJ0-2mix and WSJ0-3mix
 # ################################
 #
 # Basic parameters
 # Seed needs to be set at top of yaml, before objects with parameters are made
 #
-seed: 1234
+seed: 2
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 # Data params
@@ -21,7 +21,7 @@ data_folder: !PLACEHOLDER
 # you can do this conversion with the script ../meta/preprocess_dynamic_mixing.py
 base_folder_dm: /yourpath/wsj0-processed/si_tr_s/
 
-experiment_name: resepformer
+experiment_name: mega-resepformer
 output_folder: !ref results/<experiment_name>/<seed>
 train_log: !ref <output_folder>/train_log.txt
 save_folder: !ref <output_folder>/save
@@ -106,6 +106,7 @@ intra_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormand
     norm_before: True
     use_norm: True
     use_skip: True
+    attention_type: "fairseqMEGA"
 
 mem_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormandskip
     num_layers: 8
@@ -117,6 +118,7 @@ mem_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormandsk
     norm_before: True
     use_norm: True
     use_skip: True
+    attention_type: "fairseqMEGA"
 
 MaskNet: !new:speechbrain.lobes.models.resepformer.ResourceEfficientSeparator
     input_dim: !ref <N_encoder_out>
