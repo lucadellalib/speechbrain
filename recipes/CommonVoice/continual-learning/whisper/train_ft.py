@@ -21,6 +21,7 @@ NOTE: although checkpoints are saved regularly, automatic experiment resumption 
 
 Authors
  * Luca Della Libera 2022
+ * Pooneh Mousavi 2023
 """
 
 import logging
@@ -39,6 +40,7 @@ from speechbrain.tokenizers.SentencePiece import SentencePiece
 from speechbrain.utils.distributed import run_on_main
 
 from common_voice_prepare import prepare_common_voice
+from fleurs_prepare import prepare_fleurs
 
 
 class ASR(sb.Brain):
@@ -251,14 +253,29 @@ def test(hparams, run_opts, locales, wer_file="wer_test.txt"):
     # Test on old + new locales
     for locale in locales:
         # Multi-gpu (ddp) save data preparation
-        run_on_main(
-            prepare_common_voice,
-            kwargs={
-                "locales": [locale],
-                "download_dir": hparams["download_dir"],
-                "max_durations": hparams["max_durations"],
-            },
-        )
+
+        if locale in hparams["old_locales"]:
+            run_on_main(
+                # prepare_common_voice,
+                prepare_fleurs,
+                kwargs={
+                    "locales": [locale],
+                    "download_dir": hparams["download_dir"],
+                    "max_durations": hparams["max_durations"],
+                },
+            )
+            locale =locale.split('_')[0]
+        else:
+            run_on_main(
+                prepare_common_voice,
+                kwargs={
+                    "locales": [locale],
+                    "download_dir": hparams["download_dir"],
+                    "max_durations": hparams["max_durations"],
+                },
+            )
+
+        
 
         if locale in ["zh-CN", "ja"]:
             # Use CER instead of WER (spaces are not used)
@@ -309,6 +326,7 @@ def train(hparams, run_opts):
         # Multi-gpu (ddp) save data preparation
         run_on_main(
             prepare_common_voice,
+            # prepare_fluers,
             kwargs={
                 "locales": [locale],
                 "download_dir": hparams["download_dir"],

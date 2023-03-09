@@ -7,9 +7,9 @@ seed: 1986
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 # Data preparation
-new_locales: [rw, eo, kab, lg, mhr, ckb, ab, kmr, fy-NL, ia]
-old_locales: [en, zh-CN, de, es, ru, fr, pt, ja, tr, pl]
-download_dir: data
+new_locales: [rw,yue,ckb,ug,mhr,kab,eo,dv,ia,fy-NL]
+old_locales: [sw_ke,cmn_hans_cn,fa_ir,tr_tr,hu_hu,so_so,ru_ru,hi_in, fr_fr,de_de]
+download_dir: f_data
 max_durations: null  # [36000, 3600, 3600] for whisper-large-v2
 
 # Output directories
@@ -17,8 +17,8 @@ output_dir: !ref results/<whisper_variant>/ft/<seed>
 save_dir: !ref <output_dir>/save
 
 # Training parameters
-train_batch_size: 128  # 96 for whisper-base, 8 for whisper-large-v2
-valid_batch_size: 152  # 128 for whisper-base, 16 for whisper-large-v2
+train_batch_size: 8  # 96 for whisper-base, 8 for whisper-large-v2
+valid_batch_size: 8  # 128 for whisper-base, 16 for whisper-large-v2
 train_num_workers: 6
 valid_num_workers: 6
 
