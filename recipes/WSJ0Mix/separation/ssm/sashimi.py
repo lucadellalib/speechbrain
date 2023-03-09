@@ -204,6 +204,7 @@ class Sashimi(nn.Module):
     def __init__(
         self,
         d_model=64,
+        d_state=64,
         n_layers=8,
         pool=[4, 4],
         expand=2,
@@ -242,7 +243,7 @@ class Sashimi(nn.Module):
         def s4_block(dim):
             layer = S4(
                 d_model=dim,
-                d_state=64,
+                d_state=d_state,
                 bidirectional=bidirectional,
                 dropout=dropout,
                 transposed=True,

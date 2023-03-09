@@ -141,7 +141,7 @@ class Separation(sb.Brain):
                         self.nonfinite_count
                     )
                 )
-                loss.data = torch.tensor(0.).to(self.device)
+                loss.data = torch.tensor(0.0).to(self.device)
         else:
             predictions, targets = self.compute_forward(
                 mixture, targets, sb.Stage.TRAIN
@@ -364,7 +364,13 @@ class Separation(sb.Brain):
                     )
                     sisnrs_i = sisnrs - sisnr_baselines
 
-                    for target, prediction, mixture_signal, sisnr, sisnr_i in zip(
+                    for (
+                        target,
+                        prediction,
+                        mixture_signal,
+                        sisnr,
+                        sisnr_i,
+                    ) in zip(
                         targets, predictions, mixture_signals, sisnrs, sisnrs_i,
                     ):
                         target = target.t().cpu().numpy()
@@ -375,7 +381,9 @@ class Separation(sb.Brain):
 
                         # Compute SDR
                         sdr, _, _, _ = bss_eval_sources(target, prediction)
-                        sdr_baseline, _, _, _ = bss_eval_sources(target, mixture_signal)
+                        sdr_baseline, _, _, _ = bss_eval_sources(
+                            target, mixture_signal
+                        )
                         sdr_i = sdr.mean() - sdr_baseline.mean()
 
                         # Saving on a csv file
@@ -512,8 +520,78 @@ def dataio_prep(hparams):
     return train_data, valid_data, test_data
 
 
-if __name__ == "__main__":
+def profile(hparams):
+    # Profile
+    class ProfilableModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.Encoder = hparams["Encoder"]
+            self.MaskNet = hparams["MaskNet"]
+            self.Decoder = hparams["Decoder"]
+            self.num_spks = hparams["num_spks"]
 
+        @torch.no_grad()
+        def forward(self, mix):
+            # Separation
+            mix_w = self.Encoder(mix)
+            est_mask = self.MaskNet(mix_w)
+            mix_w = torch.stack([mix_w] * self.num_spks)
+            sep_h = mix_w * est_mask
+
+            # Decoding
+            est_source = torch.cat(
+                [
+                    self.Decoder(sep_h[i]).unsqueeze(-1)
+                    for i in range(self.num_spks)
+                ],
+                dim=-1,
+            )
+
+            # T changed after conv1d in encoder, fix it here
+            T_origin = mix.size(1)
+            T_est = est_source.size(1)
+            if T_origin > T_est:
+                est_source = F.pad(est_source, (0, 0, 0, T_origin - T_est))
+            else:
+                est_source = est_source[:, :T_origin, :]
+
+            return est_source
+
+    import time
+    import ptflops
+    from torchinfo import summary
+
+    model = ProfilableModel().eval().to(run_opts["device"])
+    macs_results = []
+    mem_results = []
+    time_results = []
+    for seconds in [1, 2, 4, 8, 16]:
+        print(f"Trying {seconds} seconds long input")
+        inputs = torch.rand(1, hparams["sample_rate"] * seconds).to(
+            run_opts["device"]
+        )
+        macs, params = ptflops.get_model_complexity_info(
+            model, tuple(inputs.shape[1:]), as_strings=True
+        )
+        t1 = time.time()
+        model(inputs)
+        torch.cuda.synchronize()
+        t2 = time.time()
+        max_mem = torch.cuda.max_memory_allocated("cuda") / 10 ** 9
+        macs_results.append(macs)
+        mem_results.append(max_mem)
+        time_results.append(t2 - t1)
+
+    results = {
+        "macs": macs_results,
+        "memory": mem_results,
+        "time": time_results,
+    }
+    logging.info(summary(model, input_size=(1, 64000)))
+    logging.info(results)
+
+
+if __name__ == "__main__":
     # Load hyperparameters file with command-line overrides
     hparams_file, run_opts, overrides = sb.parse_arguments(sys.argv[1:])
     with open(hparams_file) as fin:
@@ -531,6 +609,9 @@ if __name__ == "__main__":
         hyperparams_to_save=hparams_file,
         overrides=overrides,
     )
+
+    # Profile
+    profile(hparams)
 
     # Check if wsj0_tr is set with dynamic mixing
     if hparams["dynamic_mixing"] and not os.path.exists(
@@ -641,3 +722,6 @@ if __name__ == "__main__":
     # Eval
     separator.evaluate(test_data, min_key="si-snr")
     separator.save_results(test_data)
+
+    # Profile
+    profile(hparams)
