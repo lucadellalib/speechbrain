@@ -396,7 +396,6 @@ if __name__ == "__main__":
     # Minimize number of modifications to existing training/evaluation loops
     class BayesByBackpropModule(VariationalPosteriorModule):
         def forward(self, *args, **kwargs):
-            print("BAYES")
             if self.training:
                 output, self.kl_div = super().forward(
                     *args, num_mc_samples=1, return_kl_div=True, **kwargs

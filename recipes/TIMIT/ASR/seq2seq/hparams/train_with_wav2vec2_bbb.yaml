@@ -1,12 +1,12 @@
 # ################################
-# Model: Bayesian seq2seq ASR on TIMIT with wav2vec2 + CTC/Attention
+# Model: Bayes by Backprop seq2seq ASR on TIMIT with wav2vec2 + CTC/Attention
 # Authors: Luca Della Libera 2023
 # ################################
 
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/CRDNN_wav2vec_seq2seq/<seed>
+output_folder: !ref results/CRDNN_wav2vec_seq2seq_bbb/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
