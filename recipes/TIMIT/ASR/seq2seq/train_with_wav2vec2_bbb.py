@@ -19,13 +19,12 @@ Authors
 
 import os
 import sys
-import torch
-import logging
-import speechbrain as sb
-from hyperpyyaml import load_hyperpyyaml
-from speechbrain.utils.distributed import run_on_main
 
-logger = logging.getLogger(__name__)
+import torch
+from hyperpyyaml import load_hyperpyyaml
+
+import speechbrain as sb
+from speechbrain.utils.distributed import run_on_main
 
 
 # Define training procedure
@@ -222,7 +221,11 @@ class ASR(sb.Brain):
             self.modules.wav2vec2.parameters()
         )
         self.adam_optimizer = self.hparams.adam_opt_class(
-            self.hparams.model.parameters()
+            [
+                *self.hparams.model.parameters(),
+                *self.hparams.seq_lin.parameters(),
+                *self.hparams.ctc_lin.parameters(),
+            ]
         )
 
         if self.checkpointer is not None:
@@ -411,7 +414,7 @@ if __name__ == "__main__":
             )
             return output
 
-    for key in ["ctc_lin", "seq_lin"]:
+    for key in ["seq_lin", "ctc_lin"]:
         parameters = []
         for module in hparams["modules"][key].modules():
             parameters += list(module.parameters())
@@ -431,11 +434,9 @@ if __name__ == "__main__":
             posterior_kwargs,
             parameters,
         )
-    hparams["model"] = torch.nn.ModuleList([
-        hparams["enc"],
-        hparams["emb"],
-        hparams["dec"],
-    ])
+    hparams["model"] = torch.nn.ModuleList(
+        [hparams["enc"], hparams["emb"], hparams["dec"],]
+    )
     hparams["greedy_searcher"].linear = hparams["seq_lin"]
     hparams["beam_searcher"].linear = hparams["seq_lin"]
     hparams["beam_searcher"].ctc_linear = hparams["ctc_lin"]
