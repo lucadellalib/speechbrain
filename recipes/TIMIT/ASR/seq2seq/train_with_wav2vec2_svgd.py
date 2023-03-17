@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 
-"""Recipe for training a Bayesian phoneme recognizer on TIMIT via Bayes by Backprop
-(https://arxiv.org/abs/1505.05424).
+"""Recipe for training a Bayesian phoneme recognizer on TIMIT via Stein variational gradient
+descent (https://arxiv.org/abs/1608.04471).
 The system relies on an encoder, a decoder, and attention mechanisms between them.
-Linear layers are turned into Bayesian linear layers by placing a normal prior and a normal
-variational posterior upon their weights and biases. The Bayesian neural network is trained
-to minimize the evidence lower bound (ELBO), which is a trade-off between the simplicity of
-the prior (complexity loss) and the complexity of the data (likelihood loss).
+Linear layers are turned into Bayesian linear layers by placing a normal prior upon their
+weights and biases. The Bayesian neural network is trained to minimize a trade-off between
+the simplicity of the prior (complexity loss) and the complexity of the data (likelihood loss).
 The likelihood loss is the standard loss function used in non-Bayesian ASR (CTC + negative log
-likelihood), the complexity loss is the Kullback-Leibler divergence between variational posterior
-and prior. Greedy search is using for validation, while beamsearch is used at test time to improve
+likelihood), the complexity loss is the repulsive force based on the RBF kernel described in the
+SVGD paper. Greedy search is using for validation, while beamsearch is used at test time to improve
 the system performance.
 
 To run this recipe, do the following:
-> python train_with_wav2vec2_bbb.py hparams/train_with_wav2vec2_bbb.yaml --data_folder /path/to/TIMIT
+> python train_with_wav2vec2_svgd.py hparams/train_with_wav2vec2_svgd.yaml --data_folder /path/to/TIMIT
 
 Authors
  * Luca Della Libera 2023
@@ -80,8 +79,8 @@ class ASR(sb.Brain):
         loss_seq = self.hparams.seq_cost(p_seq, phns_eos, phn_lens_eos)
         loss = self.hparams.ctc_weight * loss_ctc
         loss += (1 - self.hparams.ctc_weight) * loss_seq
-        loss += self.hparams.kl_div_weight * (
-            self.modules.ctc_lin.kl_div + self.modules.seq_lin.kl_div
+        loss -= self.hparams.log_prior_weight * (
+            self.modules.ctc_lin.log_prior + self.modules.seq_lin.log_prior
         )
 
         # Record losses for posterity
@@ -194,10 +193,14 @@ class ASR(sb.Brain):
                 loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
             self.scaler.scale(loss).backward()
+            for preconditioner in self.hparams.preconditioners:
+                self.scaler.unscale_(preconditioner)
             self.scaler.unscale_(self.wav2vec_optimizer)
             self.scaler.unscale_(self.adam_optimizer)
 
             if self.check_gradients(loss):
+                for preconditioner in self.hparams.preconditioners:
+                    self.scaler.step(preconditioner)
                 self.scaler.step(self.wav2vec_optimizer)
                 self.scaler.step(self.adam_optimizer)
 
@@ -209,6 +212,8 @@ class ASR(sb.Brain):
             loss.backward()
 
             if self.check_gradients(loss):
+                for preconditioner in self.hparams.preconditioners:
+                    preconditioner.step()
                 self.wav2vec_optimizer.step()
                 self.adam_optimizer.step()
 
@@ -387,34 +392,40 @@ if __name__ == "__main__":
     # ###################################################################
     # Define Bayesian modules
     # ###################################################################
+    import math
     try:
-        from bayestorch.distributions import (
-            get_log_scale_normal,
-            get_softplus_inv_scale_normal,
-        )
-        from bayestorch.nn import VariationalPosteriorModule
+        from bayestorch.distributions import get_log_scale_normal
+        from bayestorch.nn import ParticlePosteriorModule
+        from bayestorch.optim import SVGD
     except ImportError:
         raise ImportError(
             "Please install BayesTorch to use BayesSpeech (e.g. `pip install bayestorch==0.0.3`)"
         )
 
     # Minimize number of modifications to existing training/evaluation loops
-    class BBBModule(VariationalPosteriorModule):
+    class SVGDModule(ParticlePosteriorModule):
         def forward(self, *args, **kwargs):
             if self.training:
-                output, self.kl_div = super().forward(
-                    *args, num_mc_samples=1, return_kl_div=True, **kwargs
+                output, self.log_prior = super().forward(
+                    *args, return_log_prior=True, **kwargs
                 )
                 return output
-            output, self.kl_div = (
-                super().forward(
-                    *args,
-                    num_mc_samples=hparams["num_eval_mc_samples"],
-                    **kwargs,
-                ),
+            output, self.log_prior = (
+                super().forward(*args, **kwargs),
                 0.0,
             )
             return output
+
+    def rbf_kernel(x1, x2):
+        deltas = torch.cdist(x1, x2)
+        squared_deltas = deltas ** 2
+        bandwidth = (
+            squared_deltas.detach().median()
+            / math.log(min(x1.shape[0], x2.shape[0]))
+        )
+        log_kernels = -squared_deltas / bandwidth
+        kernels = log_kernels.exp()
+        return kernels
 
     for key in ["seq_lin", "ctc_lin"]:
         parameters = []
@@ -423,25 +434,31 @@ if __name__ == "__main__":
         prior_builder, prior_kwargs = get_log_scale_normal(
             parameters, log_scale=hparams["normal_prior_log_scale"],
         )
-        posterior_builder, posterior_kwargs = get_softplus_inv_scale_normal(
-            parameters,
-            softplus_inv_scale=hparams["normal_posterior_softplus_inv_scale"],
-            requires_grad=True,
-        )
-        hparams[key] = hparams["modules"][key] = BBBModule(
+        hparams[key] = hparams["modules"][key] = SVGDModule(
             hparams["modules"][key],
             prior_builder,
             prior_kwargs,
-            posterior_builder,
-            posterior_kwargs,
+            hparams["num_particles"],
             parameters,
-        )
+        ).to(run_opts["device"])
     hparams["model"] = torch.nn.ModuleList(
         [hparams["enc"], hparams["emb"], hparams["dec"],]
     )
     hparams["greedy_searcher"].linear = hparams["seq_lin"]
     hparams["beam_searcher"].linear = hparams["seq_lin"]
     hparams["beam_searcher"].ctc_linear = hparams["ctc_lin"]
+    hparams["preconditioners"] = [
+        SVGD(
+            hparams["seq_lin"].parameters(),
+            rbf_kernel,
+            hparams["num_particles"],
+        ),
+        SVGD(
+            hparams["ctc_lin"].parameters(),
+            rbf_kernel,
+            hparams["num_particles"],
+        )
+    ]
     hparams["checkpointer"].recoverables["model"] = hparams["model"]
     hparams["checkpointer"].add_recoverable(
         "seq_lin", hparams["seq_lin"],
@@ -449,6 +466,10 @@ if __name__ == "__main__":
     hparams["checkpointer"].add_recoverable(
         "ctc_lin", hparams["ctc_lin"],
     )
+    for i, preconditioner in enumerate(hparams["preconditioners"]):
+        hparams["checkpointer"].add_recoverable(
+            f"preconditioner{i}", preconditioner,
+        )
     # ###################################################################
 
     # Trainer initialization
