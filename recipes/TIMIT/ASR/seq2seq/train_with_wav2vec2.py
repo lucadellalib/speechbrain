@@ -373,6 +373,28 @@ if __name__ == "__main__":
     # Dataset IO prep: creating Dataset objects and proper encodings for phones
     train_data, valid_data, test_data, label_encoder = dataio_prep(hparams)
 
+    # Subsampling
+    if hparams["max_duration"] is not None:
+        # Shuffle all data
+        import random
+
+        random.seed(hparams["seed"])
+        all_keys = list(train_data.data.keys())
+        random.shuffle(all_keys)
+        train_data.data = {k: train_data.data[k] for k in all_keys}
+        train_data.data_ids = list(train_data.data.keys())
+
+        # Subsample
+        subsampled_data = {}
+        total_duration = 0
+        for key, value in train_data.data.items():
+            if total_duration > hparams["max_duration"]:
+                break
+            subsampled_data[key] = value
+            total_duration += value["duration"]
+        train_data.data = {k: v for k, v in subsampled_data.items()}
+        train_data.data_ids = list(train_data.data.keys())
+
     # Trainer initialization
     asr_brain = ASR(
         modules=hparams["modules"],

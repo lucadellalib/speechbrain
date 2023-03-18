@@ -32,6 +32,7 @@ ctc_weight: 0.2
 sorting: ascending
 auto_mix_prec: False
 sample_rate: 16000
+max_duration: null
 
 # Model parameters
 activation: !name:torch.nn.LeakyReLU
