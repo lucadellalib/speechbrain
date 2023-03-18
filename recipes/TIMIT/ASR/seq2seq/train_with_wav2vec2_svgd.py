@@ -415,6 +415,7 @@ if __name__ == "__main__":
     # Define Bayesian modules
     # ###################################################################
     import math
+
     try:
         from bayestorch.distributions import get_log_scale_normal
         from bayestorch.nn import ParticlePosteriorModule
@@ -441,9 +442,8 @@ if __name__ == "__main__":
     def rbf_kernel(x1, x2):
         deltas = torch.cdist(x1, x2)
         squared_deltas = deltas ** 2
-        bandwidth = (
-            squared_deltas.detach().median()
-            / math.log(min(x1.shape[0], x2.shape[0]))
+        bandwidth = squared_deltas.detach().median() / math.log(
+            min(x1.shape[0], x2.shape[0])
         )
         log_kernels = -squared_deltas / bandwidth
         kernels = log_kernels.exp()
@@ -451,7 +451,8 @@ if __name__ == "__main__":
 
     for key in ["seq_lin", "ctc_lin"]:
         prior_builder, prior_kwargs = get_log_scale_normal(
-            hparams["modules"][key].parameters(), log_scale=hparams["normal_prior_log_scale"],
+            hparams["modules"][key].parameters(),
+            log_scale=hparams["normal_prior_log_scale"],
         )
         hparams[key] = hparams["modules"][key] = SVGDModule(
             hparams["modules"][key],
@@ -475,7 +476,7 @@ if __name__ == "__main__":
             hparams["ctc_lin"].parameters(),
             rbf_kernel,
             hparams["num_particles"],
-        )
+        ),
     ]
     hparams["checkpointer"].recoverables["model"] = hparams["model"]
     hparams["checkpointer"].add_recoverable(

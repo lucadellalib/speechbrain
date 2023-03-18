@@ -440,7 +440,8 @@ if __name__ == "__main__":
 
     for key in ["seq_lin", "ctc_lin"]:
         prior_builder, prior_kwargs = get_log_scale_normal(
-            hparams["modules"][key].parameters(), log_scale=hparams["normal_prior_log_scale"],
+            hparams["modules"][key].parameters(),
+            log_scale=hparams["normal_prior_log_scale"],
         )
         posterior_builder, posterior_kwargs = get_softplus_inv_scale_normal(
             hparams["modules"][key].parameters(),
