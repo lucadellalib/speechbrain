@@ -1,0 +1,5 @@
+einops==0.6.0
+opt-einsum==3.3.0
+pykeops==2.1.1
+git+https://github.com/HazyResearch/H3.git@8ebedd61275770b1fca6e0f8a31e642529d8aa97#subdirectory=csrc/cauchy
+git+https://github.com/HazyResearch/H3.git@8ebedd61275770b1fca6e0f8a31e642529d8aa97#subdirectory=csrc/fftconv
