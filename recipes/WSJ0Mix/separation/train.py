@@ -66,20 +66,43 @@ class Separation(sb.Brain):
                 if self.hparams.limit_training_signal_len:
                     mix, targets = self.cut_signals(mix, targets)
 
-        # Separation
-        mix_w = self.hparams.Encoder(mix)
-        est_mask = self.hparams.MaskNet(mix_w)
-        mix_w = torch.stack([mix_w] * self.hparams.num_spks)
-        sep_h = mix_w * est_mask
+        #breakpoint()
+        if self.hparams.use_freq_domain:
+            mix_w = self.compute_feats(mix)
+            mix_w = mix_w.permute(0, 2, 1)
+            est_mask = self.hparams.MaskNet(mix_w)
 
-        # Decoding
-        est_source = torch.cat(
-            [
-                self.hparams.Decoder(sep_h[i]).unsqueeze(-1)
-                for i in range(self.hparams.num_spks)
-            ],
-            dim=-1,
-        )
+            predict_spec = (mix_w * est_mask).permute(0, 1, 3, 2)
+
+            if self.hparams.spect_transform == 'log':
+                predict_spec = torch.expm1(predict_spec)
+            elif self.hparams.spect_transform == 'sqrt':
+                predict_spec = predict_spec.pow(2)
+
+            # Decoding
+            est_source = torch.cat(
+                [
+                    self.hparams.resynth(predict_spec[i], mix).unsqueeze(-1)
+                    for i in range(self.hparams.num_spks)
+                ],
+                dim=-1,
+            )
+
+        else:
+            # Separation
+            mix_w = self.hparams.Encoder(mix)
+            est_mask = self.hparams.MaskNet(mix_w)
+            mix_w = torch.stack([mix_w] * self.hparams.num_spks)
+            sep_h = mix_w * est_mask
+
+            # Decoding
+            est_source = torch.cat(
+                [
+                    self.hparams.Decoder(sep_h[i]).unsqueeze(-1)
+                    for i in range(self.hparams.num_spks)
+                ],
+                dim=-1,
+            )
 
         # T changed after conv1d in encoder, fix it here
         T_origin = mix.size(1)
@@ -90,6 +113,21 @@ class Separation(sb.Brain):
             est_source = est_source[:, :T_origin, :]
 
         return est_source, targets
+
+    def compute_feats(self, wavs):
+        """Feature computation pipeline"""
+        from speechbrain.processing.features import spectral_magnitude
+
+        feats = self.hparams.compute_STFT(wavs)
+        feats = spectral_magnitude(feats, power=0.5)
+        if self.hparams.spect_transform == 'log':
+            feats = torch.log1p(feats)
+        elif self.hparams.spect_transform == 'sqrt':
+            feats = torch.sqrt(feats)
+        else:
+            feats = feats
+
+        return feats
 
     def compute_objectives(self, predictions, targets):
         """Computes the sinr loss"""
@@ -508,8 +546,100 @@ def dataio_prep(hparams):
     return train_data, valid_data, test_data
 
 
-if __name__ == "__main__":
+def profile(hparams):
+    # Profile
+    class ProfilableModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            #self.Encoder = hparams["Encoder"]
+            self.MaskNet = hparams["MaskNet"]
+            #self.Decoder = hparams["Decoder"]
+            self.num_spks = hparams["num_spks"]
+            self.hparams = hparams
 
+        def compute_feats(self, wavs):
+            """Feature computation pipeline"""
+            from speechbrain.processing.features import spectral_magnitude
+
+            feats = self.hparams["compute_STFT"](wavs)
+            feats = spectral_magnitude(feats, power=0.5)
+            if self.hparams["spect_transform"] == 'log':
+                feats = torch.log1p(feats)
+            elif self.hparams["spect_transform"] == 'sqrt':
+                feats = torch.sqrt(feats)
+            else:
+                feats = feats
+
+            return feats
+
+        @torch.no_grad()
+        def forward(self, mix):
+            # Separation
+            mix_w = self.compute_feats(mix)
+            mix_w = mix_w.permute(0, 2, 1)
+            est_mask = self.hparams["MaskNet"](mix_w)
+
+            predict_spec = (mix_w * est_mask).permute(0, 1, 3, 2)
+
+            if self.hparams["spect_transform"] == 'log':
+                predict_spec = torch.expm1(predict_spec)
+            elif self.hparams["spect_transform"] == 'sqrt':
+                predict_spec = predict_spec.pow(2)
+
+            # Decoding
+            est_source = torch.cat(
+                [
+                    self.hparams["resynth"](predict_spec[i], mix).unsqueeze(-1)
+                    for i in range(self.hparams["num_spks"])
+                ],
+                dim=-1,
+            )
+
+            # T changed after conv1d in encoder, fix it here
+            T_origin = mix.size(1)
+            T_est = est_source.size(1)
+            if T_origin > T_est:
+                est_source = F.pad(est_source, (0, 0, 0, T_origin - T_est))
+            else:
+                est_source = est_source[:, :T_origin, :]
+
+            return est_source
+
+    import time
+    import ptflops
+    from torchinfo import summary
+
+    model = ProfilableModel().eval().to(run_opts["device"])
+    macs_results = []
+    mem_results = []
+    time_results = []
+    for seconds in [1, 2, 4, 8, 16]:
+        print(f"Trying {seconds} seconds long input")
+        inputs = torch.rand(1, hparams["sample_rate"] * seconds).to(
+            run_opts["device"]
+        )
+        macs, params = ptflops.get_model_complexity_info(
+            model, tuple(inputs.shape[1:]), as_strings=True
+        )
+        t1 = time.time()
+        model(inputs)
+        torch.cuda.synchronize()
+        t2 = time.time()
+        max_mem = torch.cuda.max_memory_allocated("cuda") / 10 ** 9
+        macs_results.append(macs)
+        mem_results.append(max_mem)
+        time_results.append(t2 - t1)
+
+    results = {
+        "macs": macs_results,
+        "memory": mem_results,
+        "time": time_results,
+    }
+    logging.info(summary(model, input_size=(1, 64000)))
+    logging.info(results)
+
+
+if __name__ == "__main__":
     # Load hyperparameters file with command-line overrides
     hparams_file, run_opts, overrides = sb.parse_arguments(sys.argv[1:])
     with open(hparams_file) as fin:
@@ -528,6 +658,9 @@ if __name__ == "__main__":
         overrides=overrides,
     )
 
+    # Profile
+    profile(hparams)
+
     # Check if wsj0_tr is set with dynamic mixing
     if hparams["dynamic_mixing"] and not os.path.exists(
         hparams["base_folder_dm"]
@@ -538,7 +671,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Data preparation
-    from recipes.WSJ0Mix.prepare_data import prepare_wsjmix  # noqa
+    from prepare_data import prepare_wsjmix  # noqa
 
     run_on_main(
         prepare_wsjmix,
@@ -637,3 +770,6 @@ if __name__ == "__main__":
     # Eval
     separator.evaluate(test_data, min_key="si-snr")
     separator.save_results(test_data)
+
+    # Profile
+    profile(hparams)
