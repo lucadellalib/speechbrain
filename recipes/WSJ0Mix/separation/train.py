@@ -6,14 +6,14 @@ To run this recipe, do the following:
 > python train.py hparams/sepformer.yaml
 > python train.py hparams/dualpath_rnn.yaml
 > python train.py hparams/convtasnet.yaml
-> python train.py hparams/seps4.yaml
-> python train.py hparams/seps4-dualpath.yaml
+> python train.py hparams/s4.yaml
+> python train.py hparams/s4-dualpath.yaml
+> python train.py hparams/sashimi.yaml
 
 The experiment file is flexible enough to support different neural
 networks. By properly changing the parameter files, you can try
 different architectures. The script supports both wsj2mix and
 wsj3mix.
-
 
 Authors
  * Cem Subakan 2020
