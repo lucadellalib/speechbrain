@@ -1,5 +1,5 @@
 # ################################
-# Model: Dual-Path S4 for source separation
+# Model: Dual-path S4 for source separation
 # https://arxiv.org/abs/2111.00396
 # Dataset : WSJ0-2mix and WSJ0-3mix
 # ################################
@@ -31,7 +31,6 @@ valid_data: !ref <save_folder>/wsj_cv.csv
 test_data: !ref <save_folder>/wsj_tt.csv
 skip_prep: False
 
-
 # Experiment params
 auto_mix_prec: False # Set it to True for mixed precision
 test_only: False
@@ -44,7 +43,7 @@ sample_rate: 8000
 # Training parameters
 N_epochs: 200
 batch_size: 1
-lr: 0.0015
+lr: 0.00015
 clip_grad_norm: 5
 loss_upper_lim: 999999  # this is the upper limit for an acceptable loss
 # if True, the training sequences are cut to a specified length
@@ -90,26 +89,24 @@ kernel_stride: 8
 # Set num_workers: 0 on MacOS due to behavior of the multiprocessing library
 dataloader_opts:
     batch_size: !ref <batch_size>
-    num_workers: 3
-
+    num_workers: 1
 
 # Specifying the network
 Encoder: !new:speechbrain.lobes.models.dual_path.Encoder
     kernel_size: !ref <kernel_size>
     out_channels: !ref <N_encoder_out>
 
-
 SBtfintra: !new:ssm.separation.S4Net
     d_input: !ref <out_channels>
     n_layers: 8
     d_state: 128
-    mode: diag
+    mode: nplr
 
 SBtfinter: !new:ssm.separation.S4Net
     d_input: !ref <out_channels>
     n_layers: 8
     d_state: 128
-    mode: diag
+    mode: nplr
 
 MaskNet: !new:speechbrain.lobes.models.dual_path.Dual_Path_Model
     num_spks: !ref <num_spks>
@@ -130,7 +127,7 @@ Decoder: !new:speechbrain.lobes.models.dual_path.Decoder
     stride: !ref <kernel_stride>
     bias: False
 
-optimizer: !name:torch.optim.Adam
+optimizer: !name:torch.optim.AdamW
     lr: !ref <lr>
     weight_decay: 0
 

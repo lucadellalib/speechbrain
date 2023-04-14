@@ -1,13 +1,15 @@
 # Speech separation with WSJ0-Mix
 This folder contains some popular recipes for the WSJ0-Mix task (2/3 sources).
 
-* This recipe supports train with several source separation models on WSJ0-2Mix, including [Sepformer](https://arxiv.org/abs/2010.13154), [RE-SepFormer](https://arxiv.org/abs/2206.09507), [DPRNN](https://arxiv.org/abs/1910.06379), [ConvTasnet](https://arxiv.org/abs/1809.07454), [DPTNet](https://arxiv.org/abs/2007.13975).
+* This recipe supports train with several source separation models on WSJ0-2Mix, including [Sepformer](https://arxiv.org/abs/2010.13154), [RE-SepFormer](https://arxiv.org/abs/2206.09507), [DPRNN](https://arxiv.org/abs/1910.06379), [ConvTasnet](https://arxiv.org/abs/1809.07454), [DPTNet](https://arxiv.org/abs/2007.13975) and [S4](https://arxiv.org/abs/2111.00396).
 
 **Web Demo** Integrated to [Huggingface Spaces](https://huggingface.co/spaces) with [Gradio](https://github.com/gradio-app/gradio). See demo Speech Seperation: [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/akhaliq/speechbrain-speech-seperation)
 
-Additional dependency:
+Additional dependencies:
 ```
 pip install mir_eval
+pip install ptflops
+pip install torchinfo
 ```
 
 To run it:
@@ -54,7 +56,7 @@ Note that during training we print the negative SI-SNR (as we treat this value a
 
 
 # Training Time
-Each epoch takes about 2 hours for WSJ0-2Mix and WSJ0-3Mix (DynamicMixing ) on a NVIDIA V100 (32GB).
+Each epoch takes about 2 hours for WSJ0-2Mix and WSJ0-3Mix (DynamicMixing) on a NVIDIA V100 (32GB).
 
 # Pretrained Models:
 Pretrained models for SepFormer on WSJ0-2Mix, WSJ0-3Mix, and WHAM! datasets can be found through huggingface:

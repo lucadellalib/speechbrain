@@ -31,7 +31,6 @@ valid_data: !ref <save_folder>/wsj_cv.csv
 test_data: !ref <save_folder>/wsj_tt.csv
 skip_prep: False
 
-
 # Experiment params
 auto_mix_prec: False # Set it to True for mixed precision
 test_only: False
@@ -42,7 +41,7 @@ sample_rate: 8000
 # Training parameters
 N_epochs: 200
 batch_size: 1
-lr: 0.0015
+lr: 0.00015
 clip_grad_norm: 5
 loss_upper_lim: 999999  # this is the upper limit for an acceptable loss
 # if True, the training sequences are cut to a specified length
@@ -90,22 +89,18 @@ dataloader_opts:
     batch_size: !ref <batch_size>
     num_workers: 1
 
-
 # Specifying the network
 Encoder: !new:speechbrain.lobes.models.dual_path.Encoder
     kernel_size: !ref <kernel_size>
     out_channels: !ref <N_encoder_out>
 
-
 MaskNet: !new:ssm.separation.SashimiMaskNet
     d_input: !ref <N_encoder_out>
     num_spks: !ref <num_spks>
-    n_layers: 2
-    d_state: 256
-    pool: [8, 8]
-    mode: diag
+    n_layers: 4
+    d_state: 64
+    mode: nplr
     output_activation: leaky_relu
-
 
 Decoder: !new:speechbrain.lobes.models.dual_path.Decoder
     in_channels: !ref <N_encoder_out>
@@ -114,7 +109,7 @@ Decoder: !new:speechbrain.lobes.models.dual_path.Decoder
     stride: !ref <kernel_stride>
     bias: False
 
-optimizer: !name:torch.optim.Adam
+optimizer: !name:torch.optim.AdamW
     lr: !ref <lr>
     weight_decay: 0
 
