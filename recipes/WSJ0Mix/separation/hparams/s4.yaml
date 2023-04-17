@@ -102,7 +102,7 @@ MaskNet: !new:ssm.separation.S4MaskNet
     n_layers: 16
     d_state: 128
     mode: nplr
-    output_activation: leaky_relu
+    output_activation: relu
 
 Decoder: !new:speechbrain.lobes.models.dual_path.Decoder
     in_channels: !ref <N_encoder_out>

@@ -7,7 +7,7 @@ To run this recipe, do the following:
 > python train.py hparams/dualpath_rnn.yaml
 > python train.py hparams/convtasnet.yaml
 > python train.py hparams/s4.yaml
-> python train.py hparams/s4-dualpath.yaml
+> python train.py hparams/dps4.yaml
 > python train.py hparams/sashimi.yaml
 
 The experiment file is flexible enough to support different neural

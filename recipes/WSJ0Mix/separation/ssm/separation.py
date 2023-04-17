@@ -20,11 +20,11 @@ except ImportError:
     from sashimi import FFBlock, LinearActivation, ResidualBlock, Sashimi
 
 
-__all__ = ["S4MaskNet", "S4MultibranchMaskNet", "S4Net", "SashimiMaskNet"]
+__all__ = ["S4MaskNet", "S4Net", "SashimiMaskNet"]
 
 
 class S4Block(nn.Module):
-    def __init__(self, d_input, d_output, d_state=64, mode="diag", **kwargs):
+    def __init__(self, d_input, d_output, d_state=64, mode="nplr", **kwargs):
         super().__init__()
         self.layer_norm1 = nn.LayerNorm(d_input)
         self.s4 = S4(
@@ -64,7 +64,7 @@ class S4Net(nn.Module):
         n_layers=1,
         d_state=64,
         output_activation="relu",
-        mode="diag",
+        mode="nplr",
         **kwargs,
     ):
         super().__init__()
@@ -95,7 +95,7 @@ class S4MaskNet(nn.Module):
         n_layers=1,
         d_state=64,
         output_activation="relu",
-        mode="diag",
+        mode="nplr",
         **kwargs,
     ):
         super().__init__()
@@ -129,58 +129,6 @@ class S4MaskNet(nn.Module):
         return output
 
 
-class S4MultibranchMaskNet(nn.Module):
-    def __init__(
-        self,
-        d_input,
-        num_spks=2,
-        n_layers_torso=1,
-        n_layers_head=1,
-        d_state=64,
-        output_activation="relu",
-        mode="diag",
-        **kwargs,
-    ):
-        super().__init__()
-        self.d_input = d_input
-        self.num_spks = num_spks
-        self.n_layers_torso = n_layers_torso
-        self.n_layers_head = n_layers_head
-        self.d_state = d_state
-        self.output_activation = Activation(output_activation)
-        self.torso = nn.ModuleList(
-            [
-                S4Block(d_input, d_input, d_state, mode=mode, **kwargs)
-                for _ in range(n_layers_torso)
-            ]
-        )
-        self.heads = nn.ModuleList(
-            [
-                nn.ModuleList(
-                    [
-                        S4Block(d_input, d_input, d_state, mode=mode, **kwargs)
-                        for _ in range(n_layers_head)
-                    ]
-                )
-                for _ in range(num_spks)
-            ]
-        )
-
-    def forward(self, input, *args, **kwargs):
-        # input: B x C x L
-        torso_output = input.movedim(-1, -2)
-        for layer in self.torso:
-            torso_output, _ = layer(torso_output, *args, **kwargs)
-        outputs = []
-        for i, head in enumerate(self.heads):
-            output = torso_output
-            for layer in head:
-                output, _ = layer(output, *args, **kwargs)
-            output = self.output_activation(output)
-            outputs.append(output)
-        return torch.stack(outputs).movedim(-1, -2)
-
-
 class SashimiMaskNet(Sashimi):
     def __init__(
         self,
@@ -188,7 +136,7 @@ class SashimiMaskNet(Sashimi):
         num_spks=2,
         pool=(4, 4),
         output_activation="relu",
-        mode="diag",
+        mode="nplr",
         **kwargs,
     ):
         super().__init__(pool=pool, d_model=d_input, mode=mode, **kwargs)
@@ -307,47 +255,6 @@ def test_s4_mask_net():
     optimizer.step()
 
 
-def test_s4_multibranch_mask_net():
-    batch_size = 4
-    sequence_length = 10246
-    d_input = 50
-    lr = 0.1
-
-    model = S4MultibranchMaskNet(
-        d_input, num_spks=2, n_layers_torso=4, n_layers_head=4
-    )
-    torch.manual_seed(0)
-
-    # All parameters in the model
-    all_parameters = list(model.parameters())
-
-    # General parameters don't contain the special _optim key
-    params = [p for p in all_parameters if not hasattr(p, "_optim")]
-
-    # Create an optimizer with the general parameters
-    optimizer = torch.optim.AdamW(params, lr=lr, weight_decay=0.01)
-
-    # Add parameters with special hyperparameters
-    hps = [getattr(p, "_optim") for p in all_parameters if hasattr(p, "_optim")]
-    hps = [
-        dict(s)
-        for s in sorted(
-            list(dict.fromkeys(frozenset(hp.items()) for hp in hps))
-        )
-    ]  # Unique dicts
-    for hp in hps:
-        params = [p for p in all_parameters if getattr(p, "_optim", None) == hp]
-        optimizer.add_param_group({"params": params, **hp})
-    print(optimizer)
-
-    input = torch.rand(batch_size, d_input, sequence_length)
-    output = model(input)
-    loss = output.sum()
-    loss.backward()
-    print(output)
-    optimizer.step()
-
-
 def test_sashimi_mask_net():
     batch_size = 4
     sequence_length = 10246
@@ -390,5 +297,4 @@ def test_sashimi_mask_net():
 if __name__ == "__main__":
     test_s4_net()
     test_s4_mask_net()
-    test_s4_multibranch_mask_net()
     test_sashimi_mask_net()
