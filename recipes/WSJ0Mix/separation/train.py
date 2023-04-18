@@ -565,22 +565,32 @@ def profile(hparams):
     macs_results = []
     mem_results = []
     time_results = []
-    for seconds in [1, 2, 4, 8, 16]:
+    for seconds in range(1, 16):
         print(f"Trying {seconds} seconds long input")
-        inputs = torch.rand(1, hparams["sample_rate"] * seconds).to(
-            run_opts["device"]
-        )
-        macs, params = ptflops.get_model_complexity_info(
-            model, tuple(inputs.shape[1:]), as_strings=True
-        )
-        t1 = time.time()
-        model(inputs)
-        torch.cuda.synchronize()
-        t2 = time.time()
-        max_mem = torch.cuda.max_memory_allocated("cuda") / 10 ** 9
-        macs_results.append(macs)
-        mem_results.append(max_mem)
-        time_results.append(t2 - t1)
+        avg_macs = ""
+        avg_mem = 0
+        avg_time = 0
+        for _ in range(10):
+            inputs = torch.rand(1, hparams["sample_rate"] * seconds).to(
+                run_opts["device"]
+            )
+            macs, params = ptflops.get_model_complexity_info(
+                model,
+                tuple(inputs.shape[1:]),
+                print_per_layer_stat=False,
+                as_strings=True,
+            )
+            t1 = time.time()
+            model(inputs)
+            torch.cuda.synchronize()
+            t2 = time.time()
+            max_mem = torch.cuda.max_memory_allocated("cuda") / 10 ** 9
+            avg_macs = macs
+            avg_mem += max_mem
+            avg_time += t2 - t1
+        macs_results.append(avg_macs)
+        mem_results.append(avg_mem / 10)
+        time_results.append(avg_time / 10)
 
     results = {
         "macs": macs_results,
