@@ -6,9 +6,7 @@ To run this recipe, do the following:
 > python train.py hparams/sepformer.yaml
 > python train.py hparams/dualpath_rnn.yaml
 > python train.py hparams/convtasnet.yaml
-> python train.py hparams/s4.yaml
-> python train.py hparams/dps4.yaml
-> python train.py hparams/sashimi.yaml
+> python train.py hparams/re-seps5.yaml
 
 The experiment file is flexible enough to support different neural
 networks. By properly changing the parameter files, you can try
