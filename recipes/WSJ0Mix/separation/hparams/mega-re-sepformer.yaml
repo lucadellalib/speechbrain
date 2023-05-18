@@ -1,5 +1,5 @@
 # ################################
-# Model: RE-SepS5 for speech separation
+# Model: Mega RE-SepFormer for speech separation
 # Dataset : WSJ0-2mix and WSJ0-3mix
 # ################################
 #
@@ -21,7 +21,7 @@ data_folder: !PLACEHOLDER
 # you can do this conversion with the script ../meta/preprocess_dynamic_mixing.py
 base_folder_dm: /yourpath/wsj0-processed/si_tr_s/
 
-experiment_name: re-seps5
+experiment_name: mega-re-sepformer
 output_folder: !ref results/<experiment_name>/<seed>
 train_log: !ref <output_folder>/train_log.txt
 save_folder: !ref <output_folder>/save
@@ -95,17 +95,27 @@ Encoder: !new:speechbrain.lobes.models.dual_path.Encoder
     kernel_size: !ref <kernel_size>
     out_channels: !ref <N_encoder_out>
 
-intra_mdl: !new:ssm.models.SBTransformerBlock_wnormandskip
+intra_mdl: !new:mega.models.SBTransformerBlock_wnormandskip
     num_layers: 8
     d_model: !ref <out_channels>
-    block_count: 8
-    d_state: 1024
+    nhead: 8
+    d_ffn: 1024
+    dropout: 0
+    use_positional_encoding: True
+    norm_before: True
+    use_norm: True
+    use_skip: True
 
-mem_mdl: !new:ssm.models.SBTransformerBlock_wnormandskip
+mem_mdl: !new:mega.models.SBTransformerBlock_wnormandskip
     num_layers: 8
     d_model: !ref <out_channels>
-    block_count: 8
-    d_state: 1024
+    nhead: 8
+    d_ffn: 1024
+    dropout: 0
+    use_positional_encoding: True
+    norm_before: True
+    use_norm: True
+    use_skip: True
 
 MaskNet: !new:speechbrain.lobes.models.resepformer.ResourceEfficientSeparator
     input_dim: !ref <N_encoder_out>

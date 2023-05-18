@@ -1,12 +1,11 @@
-"""S5-based separation models.
+"""GSS-based separation models.
 
 Authors
  * Luca Della Libera
 """
 
 import torch
-torch.jit.script = lambda fn, *args, **kwargs: fn  # Monkey patch unpickable torch.jit.script
-from s5 import S5Block
+from gated_state_spaces_pytorch import GSS
 from torch import nn
 
 
@@ -18,18 +17,21 @@ class SBTransformerBlock_wnormandskip(nn.Module):
         self,
         d_model,
         num_layers=1,
-        d_state=64,
-        block_count=8,
-        bidirectional=False,
+        dim_expansion_factor=4,  # hidden dimension (expansion factor x d_model) = 2048
+        dss_kernel_N=512,
+        dss_kernel_H=256,
         **kwargs,
     ):
         super().__init__()
-        self.d_model = d_model
-        self.num_layers = num_layers
-        self.d_state = d_state
         self.layers = nn.ModuleList(
             [
-                S5Block(d_model, d_state, block_count=block_count, bidir=bidirectional, **kwargs)
+                GSS(
+                    dim=d_model,
+                    dim_expansion_factor=dim_expansion_factor,
+                    dss_kernel_N=dss_kernel_N,
+                    dss_kernel_H=dss_kernel_H,
+                    **kwargs,
+                )
                 for _ in range(num_layers)
             ]
         )

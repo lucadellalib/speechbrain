@@ -580,9 +580,10 @@ def profile(hparams):
             )
             t1 = time.time()
             model(inputs)
-            torch.cuda.synchronize()
+            if "cuda" in run_opts["device"]:
+                torch.cuda.synchronize()
             t2 = time.time()
-            max_mem = torch.cuda.max_memory_allocated("cuda") / 10 ** 9
+            max_mem = torch.cuda.max_memory_allocated("cuda") / 10 ** 9 if "cuda" in run_opts["device"] else 0
             avg_macs = macs
             avg_mem += max_mem
             avg_time += t2 - t1

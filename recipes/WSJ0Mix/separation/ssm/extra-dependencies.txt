@@ -1,2 +1,1 @@
-jax[cpu]==0.4.8
-s5-pytorch==0.1.7
+s5 - pytorch
