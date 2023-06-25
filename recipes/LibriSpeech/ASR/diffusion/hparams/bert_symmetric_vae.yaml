@@ -1,9 +1,9 @@
 # ############################################################################
-# Model: Symmetric BERT + CE loss
+# Model: BERT symmetric + CE loss
 # Authors: Luca Della Libera 2023
 # ############################################################################
 
-experiment_name: SymmetricBERTVAE
+experiment_name: BERTSymmetricVAE
 
 seed: 0
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
@@ -55,7 +55,7 @@ valid_dataloader_kwargs:
     num_workers: !ref <valid_num_workers>
 
 # Modules
-vae: !new:models.bert_vae.SymmetricBERTVAE
+vae: !new:models.bert_vae.BERTSymmetricVAE
     source: !ref <model_variant>
     save_path: !ref <save_folder>/huggingface
     freeze_encoder: !ref <freeze_encoder>

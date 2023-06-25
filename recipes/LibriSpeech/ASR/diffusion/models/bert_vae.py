@@ -9,10 +9,10 @@ from torch import nn
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 
 
-__all__ = ["AsymmetricBERTVAE", "SymmetricBERTVAE"]
+__all__ = ["BERTAsymmetricVAE", "BERTSymmetricVAE"]
 
 
-class AsymmetricBERTVAE(nn.Module):
+class BERTAsymmetricVAE(nn.Module):
     def __init__(self, source="bert-base-uncased", save_path="save", freeze_encoder=True):
         super().__init__()
         self.freeze_encoder = freeze_encoder
@@ -56,7 +56,7 @@ class AsymmetricBERTVAE(nn.Module):
         return logits, latents, kl
 
 
-class SymmetricBERTVAE(nn.Module):
+class BERTSymmetricVAE(nn.Module):
     def __init__(self, source="bert-base-uncased", save_path="save", freeze_encoder=True):
         super().__init__()
         self.freeze_encoder = freeze_encoder
@@ -105,7 +105,7 @@ class SymmetricBERTVAE(nn.Module):
 
 
 if __name__ == "__main__":
-    model = AsymmetricBERTVAE()
+    model = BERTAsymmetricVAE()
     input_ids = model.tokenizer(
         ["hello", "world!"],
         return_attention_mask=False,
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     ).input_ids
     print(model.tokenizer.batch_decode(model(input_ids)[0].argmax(dim=-1)))
 
-    model = SymmetricBERTVAE()
+    model = BERTSymmetricVAE()
     input_ids = model.tokenizer(
         ["hello", "world!"],
         return_attention_mask=False,
