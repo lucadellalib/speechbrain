@@ -85,7 +85,6 @@ class BERTSymmetricVAE(nn.Module):
         logits = self.decoder(
             inputs_embeds=input_embeds,
             attention_mask=attention_mask,
-            token_type_ids=torch.zeros_like(input_ids),
         ).logits
         return logits
 
