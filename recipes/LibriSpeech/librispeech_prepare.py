@@ -113,7 +113,6 @@ def prepare_librispeech(
     # create csv files for each split
     all_texts = {}
     for split_index in range(len(splits)):
-
         split = splits[split_index]
 
         wav_lst = get_all_files(
@@ -133,14 +132,20 @@ def prepare_librispeech(
             n_sentences = len(wav_lst)
 
         create_csv(
-            save_folder, wav_lst, text_dict, split, n_sentences,
+            save_folder,
+            wav_lst,
+            text_dict,
+            split,
+            n_sentences,
         )
 
     # Merging csv file if needed
     if merge_lst and merge_name is not None:
         merge_files = [split_libri + ".csv" for split_libri in merge_lst]
         merge_csvs(
-            data_folder=save_folder, csv_lst=merge_files, merged_csv=merge_name,
+            data_folder=save_folder,
+            csv_lst=merge_files,
+            merged_csv=merge_name,
         )
 
     # Create lexicon.csv and oov.csv
@@ -290,7 +295,11 @@ def process_line(wav_file, text_dict) -> LSRow:
 
 
 def create_csv(
-    save_folder, wav_lst, text_dict, split, select_n_sentences,
+    save_folder,
+    wav_lst,
+    text_dict,
+    split,
+    select_n_sentences,
 ):
     """
     Create the dataset csv file given a list of wav files.
