@@ -146,6 +146,7 @@ def dataio_prepare(hparams, tokenizer):
     @sb.utils.data_pipeline.takes("wrd")
     @sb.utils.data_pipeline.provides("tokens", "target_words")
     def text_pipeline(wrd):
+        wrd = wrd.lower()
         tokens_list = tokenizer.encode(wrd)
         tokens = torch.LongTensor(tokens_list)
         yield tokens
