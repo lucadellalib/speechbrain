@@ -13,11 +13,17 @@ __all__ = ["BERTAsymmetricVAE", "BERTSymmetricVAE"]
 
 
 class BERTAsymmetricVAE(nn.Module):
-    def __init__(self, source="bert-base-uncased", save_path="save", freeze_encoder=True):
+    def __init__(
+        self, source="bert-base-uncased", save_path="save", freeze_encoder=True
+    ):
         super().__init__()
         self.freeze_encoder = freeze_encoder
-        self.tokenizer = AutoTokenizer.from_pretrained(source, cache_dir=save_path)
-        model = AutoModelForMaskedLM.from_pretrained(source, cache_dir=save_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            source, cache_dir=save_path
+        )
+        model = AutoModelForMaskedLM.from_pretrained(
+            source, cache_dir=save_path
+        )
         self.config = model.config
         assert self.config.vocab_size == self.tokenizer.vocab_size
         self.encoder = model.bert
@@ -50,19 +56,27 @@ class BERTAsymmetricVAE(nn.Module):
         log_stddev = self.log_stddev_head(embeds)
         stddev = log_stddev.exp()
         latents = mean + stddev * torch.randn_like(mean)
-        kl = (stddev ** 2 + mean ** 2 - log_stddev - 0.5).sum(dim=-1)
+        kl = (stddev**2 + mean**2 - log_stddev - 0.5).sum(dim=-1)
         kl = kl[attention_mask.bool()].mean()
         logits = self.forward_decoder(latents, attention_mask)
         return logits, latents, kl
 
 
 class BERTSymmetricVAE(nn.Module):
-    def __init__(self, source="bert-base-uncased", save_path="save", freeze_encoder=True):
+    def __init__(
+        self, source="bert-base-uncased", save_path="save", freeze_encoder=True
+    ):
         super().__init__()
         self.freeze_encoder = freeze_encoder
-        self.tokenizer = AutoTokenizer.from_pretrained(source, cache_dir=save_path)
-        self.encoder = AutoModelForMaskedLM.from_pretrained(source, cache_dir=save_path)
-        self.decoder = AutoModelForMaskedLM.from_pretrained(source, cache_dir=save_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            source, cache_dir=save_path
+        )
+        self.encoder = AutoModelForMaskedLM.from_pretrained(
+            source, cache_dir=save_path
+        )
+        self.decoder = AutoModelForMaskedLM.from_pretrained(
+            source, cache_dir=save_path
+        )
         self.config = self.encoder.config
         assert self.config.vocab_size == self.tokenizer.vocab_size
         self.mean_head = nn.Linear(
@@ -97,7 +111,7 @@ class BERTSymmetricVAE(nn.Module):
         log_stddev = self.log_stddev_head(embeds)
         stddev = log_stddev.exp()
         latents = mean + stddev * torch.randn_like(mean)
-        kl = (stddev ** 2 + mean ** 2 - log_stddev - 0.5).sum(dim=-1)
+        kl = (stddev**2 + mean**2 - log_stddev - 0.5).sum(dim=-1)
         kl = kl[attention_mask.bool()].mean()
         logits = self.forward_decoder(latents, attention_mask)
         return logits, latents, kl

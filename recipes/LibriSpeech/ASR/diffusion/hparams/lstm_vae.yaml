@@ -33,13 +33,13 @@ avoid_if_longer_than: 10  # Remove utterances longer than 10s (open microphones)
 
 tokenizer_variant: bert-base-uncased
 
-num_epochs: 20
-lr: 0.001
+num_epochs: 30
+lr: 0.0001
 improvement_threshold: 0.0025
 annealing_factor: 0.8
 patient: 3
 nonfinite_patience: 10
-max_grad_norm: 5.0
+max_grad_norm: 2.0
 auto_mix_prec: True
 gradient_checkpointing: False
 ckpt_interval_minutes: 600

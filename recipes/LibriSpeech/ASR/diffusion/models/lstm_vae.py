@@ -13,9 +13,17 @@ __all__ = ["LSTMVAE"]
 
 
 class LSTMVAE(nn.Module):
-    def __init__(self, source="bert-base-uncased", save_path="save", hidden_size=256, num_layers=6):
+    def __init__(
+        self,
+        source="bert-base-uncased",
+        save_path="save",
+        hidden_size=256,
+        num_layers=6,
+    ):
         super().__init__()
-        self.tokenizer = AutoTokenizer.from_pretrained(source, cache_dir=save_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            source, cache_dir=save_path
+        )
         self.embedding = nn.Embedding(
             num_embeddings=self.tokenizer.vocab_size,
             embedding_dim=hidden_size,
@@ -46,7 +54,9 @@ class LSTMVAE(nn.Module):
             embeds, lengths, batch_first=True, enforce_sorted=False
         )
         embeds, _ = self.encoder(embeds)
-        embeds, _ = nn.utils.rnn.pad_packed_sequence(embeds, batch_first=True, total_length=max(lengths))
+        embeds, _ = nn.utils.rnn.pad_packed_sequence(
+            embeds, batch_first=True, total_length=max(lengths)
+        )
         return embeds
 
     def forward_decoder(self, input_embeds, attention_mask):
@@ -55,7 +65,9 @@ class LSTMVAE(nn.Module):
             input_embeds, lengths, batch_first=True, enforce_sorted=False
         )
         embeds, _ = self.decoder(input_embeds)
-        embeds, _ = nn.utils.rnn.pad_packed_sequence(embeds, batch_first=True, total_length=max(lengths))
+        embeds, _ = nn.utils.rnn.pad_packed_sequence(
+            embeds, batch_first=True, total_length=max(lengths)
+        )
         logits = self.projection(embeds)
         return logits
 
@@ -66,7 +78,7 @@ class LSTMVAE(nn.Module):
         log_stddev = self.log_stddev_head(embeds)
         stddev = log_stddev.exp()
         latents = mean + stddev * torch.randn_like(mean)
-        kl = (stddev ** 2 + mean ** 2 - log_stddev - 0.5).sum(dim=-1)
+        kl = (stddev**2 + mean**2 - log_stddev - 0.5).sum(dim=-1)
         kl = kl[attention_mask.bool()].mean()
         logits = self.forward_decoder(latents, attention_mask)
         return logits, latents, kl
