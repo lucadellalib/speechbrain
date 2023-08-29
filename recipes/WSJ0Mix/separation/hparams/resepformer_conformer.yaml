@@ -21,7 +21,7 @@ data_folder: /workspace/wsj0-mix/2speakers
 # you can do this conversion with the script ../meta/preprocess_dynamic_mixing.py
 base_folder_dm: /workspace/wsj0-mix/wsj0-processed/si_tr_s/
 
-experiment_name: resepformer_intra_num_layers_4
+experiment_name: resepformer_conformer
 output_folder: !ref results/<experiment_name>/<seed>
 train_log: !ref <output_folder>/train_log.txt
 save_folder: !ref <output_folder>/save
@@ -106,9 +106,10 @@ intra_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormand
     norm_before: True
     use_norm: True
     use_skip: True
+    use_conformer: True
 
 mem_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormandskip
-    num_layers: 8
+    num_layers: 4
     d_model: !ref <out_channels>
     nhead: 8
     d_ffn: 1024
@@ -117,6 +118,7 @@ mem_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormandsk
     norm_before: True
     use_norm: True
     use_skip: True
+    use_conformer: True
 
 MaskNet: !new:speechbrain.lobes.models.resepformer.ResourceEfficientSeparator
     input_dim: !ref <N_encoder_out>

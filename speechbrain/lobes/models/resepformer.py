@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from speechbrain.lobes.models.dual_path import select_norm
 from speechbrain.lobes.models.transformer.Transformer import (
+    ConformerEncoder,
     TransformerEncoder,
     PositionalEncoding,
     get_lookahead_mask,
@@ -377,6 +378,7 @@ class SBTransformerBlock_wnormandskip(nn.Module):
         use_norm=True,
         use_skip=True,
         norm_type="gln",
+        use_conformer=False,
     ):
         super(SBTransformerBlock_wnormandskip, self).__init__()
         self.use_positional_encoding = use_positional_encoding
@@ -390,20 +392,36 @@ class SBTransformerBlock_wnormandskip(nn.Module):
 
         self.causal = causal
 
-        self.mdl = TransformerEncoder(
-            num_layers=num_layers,
-            nhead=nhead,
-            d_ffn=d_ffn,
-            input_shape=input_shape,
-            d_model=d_model,
-            kdim=kdim,
-            vdim=vdim,
-            dropout=dropout,
-            activation=activation,
-            normalize_before=norm_before,
-            causal=causal,
-            attention_type=attention_type,
-        )
+        if not use_conformer:
+            self.mdl = TransformerEncoder(
+                num_layers=num_layers,
+                nhead=nhead,
+                d_ffn=d_ffn,
+                input_shape=input_shape,
+                d_model=d_model,
+                kdim=kdim,
+                vdim=vdim,
+                dropout=dropout,
+                activation=activation,
+                normalize_before=norm_before,
+                causal=causal,
+                attention_type=attention_type,
+            )
+        else:
+            self.mdl = ConformerEncoder(
+                num_layers=num_layers,
+                nhead=nhead,
+                d_ffn=d_ffn,
+                d_model=d_model,
+                kdim=kdim,
+                vdim=vdim,
+                dropout=dropout,
+                activation=activation,
+                causal=causal,
+                attention_type=attention_type,
+                kernel_size=31,
+            )
+
 
         self.use_norm = use_norm
         self.use_skip = use_skip

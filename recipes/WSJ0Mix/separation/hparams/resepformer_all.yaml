@@ -21,7 +21,7 @@ data_folder: /workspace/wsj0-mix/2speakers
 # you can do this conversion with the script ../meta/preprocess_dynamic_mixing.py
 base_folder_dm: /workspace/wsj0-mix/wsj0-processed/si_tr_s/
 
-experiment_name: resepformer
+experiment_name: resepformer_all
 output_folder: !ref results/<experiment_name>/<seed>
 train_log: !ref <output_folder>/train_log.txt
 save_folder: !ref <output_folder>/save
