@@ -97,7 +97,7 @@ Encoder: !new:speechbrain.lobes.models.dual_path.Encoder
 
 
 intra_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormandskip
-    num_layers: 8
+    num_layers: 4
     d_model: !ref <out_channels>
     nhead: 8
     d_ffn: 1024

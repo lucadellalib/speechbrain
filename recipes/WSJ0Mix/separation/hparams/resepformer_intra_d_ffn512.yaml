@@ -100,7 +100,7 @@ intra_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormand
     num_layers: 8
     d_model: !ref <out_channels>
     nhead: 8
-    d_ffn: 1024
+    d_ffn: 512
     dropout: 0
     use_positional_encoding: True
     norm_before: True

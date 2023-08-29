@@ -108,7 +108,7 @@ intra_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormand
     use_skip: True
 
 mem_mdl: !new:speechbrain.lobes.models.resepformer.SBTransformerBlock_wnormandskip
-    num_layers: 8
+    num_layers: 4
     d_model: !ref <out_channels>
     nhead: 8
     d_ffn: 1024
