@@ -692,6 +692,7 @@ class MultiheadAttention(nn.Module):
             add_zero_attn=add_zero_attn,
             kdim=kdim,
             vdim=vdim,
+            batch_first=True,
         )
 
     def forward(
@@ -701,7 +702,7 @@ class MultiheadAttention(nn.Module):
         value,
         attn_mask: Optional[torch.Tensor] = None,
         key_padding_mask: Optional[torch.Tensor] = None,
-        return_attn_weights: Optional[torch.Tensor] = True,
+        return_attn_weights: Optional[torch.Tensor] = False,
         pos_embs: Optional[torch.Tensor] = None,
     ):
         """
@@ -759,14 +760,18 @@ class MultiheadAttention(nn.Module):
             else:
                 attn_mask = pos_embs
 
-        output = self.att(
-            query,
-            key,
-            value,
-            attn_mask=attn_mask,
-            key_padding_mask=key_padding_mask,
-            need_weights=return_attn_weights,
-        )
+        with torch.backends.cuda.sdp_kernel(
+            enable_flash=True, enable_math=False, enable_mem_efficient=True
+        ):
+            query = query.permute(1, 0, 2)
+            output = self.att(
+                query,
+                query,
+                query,
+                attn_mask=attn_mask,
+                key_padding_mask=key_padding_mask,
+                need_weights=return_attn_weights,
+            )
 
         if return_attn_weights:
             output, attention_weights = output
@@ -774,8 +779,9 @@ class MultiheadAttention(nn.Module):
             output = output.permute(1, 0, 2)
             return output, attention_weights
         else:
-            output = output.permute(1, 0, 2)
-            return output
+            output, attention_weights = output
+            #output = output.permute(1, 0, 2)
+            return output, None
 
 
 class PositionalwiseFeedForward(nn.Module):
