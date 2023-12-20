@@ -10,6 +10,7 @@ Authors
 import math
 
 import torch
+#from s5 import S5Block
 from torch import nn
 
 try:
@@ -63,7 +64,6 @@ class S4Net(nn.Module):
         d_input,
         n_layers=1,
         d_state=64,
-        output_activation="relu",
         mode="nplr",
         **kwargs,
     ):
@@ -71,7 +71,6 @@ class S4Net(nn.Module):
         self.d_input = d_input
         self.n_layers = n_layers
         self.d_state = d_state
-        self.output_activation = Activation(output_activation)
         self.layers = nn.ModuleList(
             [
                 S4Block(d_input, d_input, d_state, mode=mode, **kwargs)
@@ -127,6 +126,80 @@ class S4MaskNet(nn.Module):
             .movedim(1, -2)
         )
         return output
+
+
+"""
+class S5MaskNet(nn.Module):
+    def __init__(
+        self,
+        d_input,
+        num_spks=2,
+        n_layers=1,
+        d_state=64,
+        block_count=8,
+        bidirectional=False,
+        output_activation="relu",
+        **kwargs,
+    ):
+        super().__init__()
+        self.d_input = d_input
+        self.num_spks = num_spks
+        self.n_layers = n_layers
+        self.d_state = d_state
+        self.output_activation = Activation(output_activation)
+        self.layers = nn.ModuleList(
+            [
+                S5Block(d_input, d_state, block_count=block_count, bidir=bidirectional, **kwargs)
+                for _ in range(n_layers - 1)
+            ]
+        )
+        self.layers.append(
+            S5Block(d_input, d_state, block_count=block_count, bidir=bidirectional, **kwargs)
+        )
+
+    def forward(self, input, *args, **kwargs):
+        # input: B x C x L
+        output = input.movedim(-1, -2)
+        for layer in self.layers:
+            output = layer(output, *args, **kwargs)
+        output = self.output_activation(output)
+        B, L, C = output.shape
+        output = (
+            output.movedim(-1, 0)
+            .reshape(self.num_spks, -1, B, L)
+            .movedim(1, -2)
+        )
+        return output
+
+
+class S5Net(nn.Module):
+    def __init__(
+        self,
+        d_input,
+        n_layers=1,
+        d_state=64,
+        block_count=8,
+        bidirectional=False,
+        **kwargs,
+    ):
+        super().__init__()
+        self.d_input = d_input
+        self.n_layers = n_layers
+        self.d_state = d_state
+        self.layers = nn.ModuleList(
+            [
+                S5Block(d_input, d_state, block_count=block_count, bidir=bidirectional, **kwargs)
+                for _ in range(n_layers)
+            ]
+        )
+
+    def forward(self, input, *args, **kwargs):
+        # input: B x L x C
+        output = input
+        for layer in self.layers:
+            output = layer(output, *args, **kwargs)
+        return output
+"""
 
 
 class SashimiMaskNet(Sashimi):
@@ -216,6 +289,28 @@ def test_s4_net():
     optimizer.step()
 
 
+"""
+def test_s5_net():
+    batch_size = 4
+    sequence_length = 10246
+    d_input = 50
+    lr = 0.1
+
+    model = S5Net(d_input, n_layers=4)
+    torch.manual_seed(0)
+
+    # Create an optimizer with the general parameters
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+
+    input = torch.rand(batch_size, sequence_length, d_input)
+    output = model(input)
+    loss = output.sum()
+    loss.backward()
+    print(output)
+    optimizer.step()
+"""
+
+
 def test_s4_mask_net():
     batch_size = 4
     sequence_length = 10246
@@ -296,5 +391,6 @@ def test_sashimi_mask_net():
 
 if __name__ == "__main__":
     test_s4_net()
+    #test_s5_net()
     test_s4_mask_net()
     test_sashimi_mask_net()

@@ -70,27 +70,7 @@ class Separation(sb.Brain):
                     mix, targets = self.cut_signals(mix, targets)
 
         # Separation
-        mix_w = self.hparams.Encoder(mix)
-        est_mask = self.hparams.MaskNet(mix_w)
-        mix_w = torch.stack([mix_w] * self.hparams.num_spks)
-        sep_h = mix_w * est_mask
-
-        # Decoding
-        est_source = torch.cat(
-            [
-                self.hparams.Decoder(sep_h[i]).unsqueeze(-1)
-                for i in range(self.hparams.num_spks)
-            ],
-            dim=-1,
-        )
-
-        # T changed after conv1d in encoder, fix it here
-        T_origin = mix.size(1)
-        T_est = est_source.size(1)
-        if T_origin > T_est:
-            est_source = F.pad(est_source, (0, 0, 0, T_origin - T_est))
-        else:
-            est_source = est_source[:, :T_origin, :]
+        est_source = self.modules.sudo(mix[:, None]).movedim(-2, -1)
 
         return est_source, targets
 
@@ -632,7 +612,7 @@ if __name__ == "__main__":
     )
 
     # Profile
-    profile(hparams)
+    #profile(hparams)
 
     # Check if wsj0_tr is set with dynamic mixing
     if hparams["dynamic_mixing"] and not os.path.exists(

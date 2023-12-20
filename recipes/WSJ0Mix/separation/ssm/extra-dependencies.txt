@@ -1,4 +1,5 @@
 einops==0.6.0
 opt-einsum==3.3.0
 pykeops==2.1.1
+s5-pytorch==0.1.7
 git+https://github.com/HazyResearch/state-spaces.git@d589d982216485cce0a46bbe7605fe75c03d3223#subdirectory=extensions/cauchy
