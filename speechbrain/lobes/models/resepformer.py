@@ -408,6 +408,22 @@ class SBTransformerBlock_wnormandskip(nn.Module):
                 attention_type=attention_type,
             )
         else:
+            self.use_conformer = True
+            """
+            try:
+                from mamba import MambaNet
+            except ImportError:
+                from .mamba import MambaNet
+
+            self.mdl = MambaNet(
+                d_model,
+                n_layers=num_layers,
+                d_state=64,
+                d_conv=4,
+                expand=2,
+            )
+            self.use_positional_encoding = False
+            """
             self.mdl = ConformerEncoder(
                 num_layers=num_layers,
                 nhead=nhead,
@@ -449,11 +465,15 @@ class SBTransformerBlock_wnormandskip(nn.Module):
         """
         src_mask = get_lookahead_mask(x) if self.causal else None
 
-        if self.use_positional_encoding:
-            pos_enc = self.pos_enc(x)
-            out = self.mdl(x + pos_enc, src_mask=src_mask)[0]
-        else:
+        if self.use_conformer:
             out = self.mdl(x, src_mask=src_mask)[0]
+            #out = self.mdl(x)
+        else:
+            if self.use_positional_encoding:
+                pos_enc = self.pos_enc(x)
+                out = self.mdl(x + pos_enc, src_mask=src_mask)[0]
+            else:
+                out = self.mdl(x, src_mask=src_mask)[0]
 
         if self.use_norm:
             out = self.norm(out.permute(0, 2, 1)).permute(0, 2, 1)

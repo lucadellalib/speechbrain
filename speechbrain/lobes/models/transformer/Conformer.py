@@ -170,6 +170,7 @@ class ConformerEncoderLayer(nn.Module):
     ):
         super().__init__()
 
+        """
         if attention_type == "regularMHA":
             self.mha_layer = MultiheadAttention(
                 nhead=nhead,
@@ -186,6 +187,17 @@ class ConformerEncoderLayer(nn.Module):
                 dropout=dropout,
                 mask_pos_future=causal,
             )
+        """
+        from mamba_ssm import Mamba
+
+        self.mha_layer = Mamba(
+            # This module uses roughly 3 * expand * d_model^2 parameters
+            d_model=d_model,  # Model dimension d_model
+            d_state=64,  # SSM state expansion factor
+            d_conv=4,  # Local convolution width
+            expand=2,  # Block expansion factor
+        )
+
 
         self.convolution_module = ConvolutionModule(
             d_model, kernel_size, bias, activation, dropout, causal=causal
@@ -244,6 +256,9 @@ class ConformerEncoderLayer(nn.Module):
         # muti-head attention module
         skip = x
         x = self.norm1(x)
+        x = self.mha_layer(x)
+        self_attn = None
+        """
         x, self_attn = self.mha_layer(
             x,
             x,
@@ -252,6 +267,7 @@ class ConformerEncoderLayer(nn.Module):
             key_padding_mask=src_key_padding_mask,
             pos_embs=pos_embs,
         )
+        """
         x = x + skip
         # convolution module
         x = x + self.convolution_module(x, conv_mask)

@@ -16,7 +16,7 @@ import time
 
 from hyperpyyaml import load_hyperpyyaml
 from matplotlib import pyplot as plt
-import ptflops
+#import ptflops
 import torch
 import torch.nn.functional as F
 import torch.utils.benchmark as benchmark
@@ -125,12 +125,14 @@ def profile(hparams):
         memory_results.append(total_peak_memory / n_runs)
 
         # This is deterministic, no need to average
+        """
         with torch.no_grad():
             with torch.cuda.amp.autocast():
                 macs, _ = ptflops.get_model_complexity_info(
                     model, (inputs.shape[1],), as_strings=True, print_per_layer_stat=False, verbose=False,
                 )
                 macs_results.append(macs)
+        """
 
     results = {
         "time": time_results,
@@ -167,19 +169,20 @@ def profile(hparams):
 
 
 def plot(results):
-    names = ["RE-SepFormer", "Skim", "SepFormer-Light"]
+    names = ["RE-SepFormer", "SkiM", "SepFormer-Light"]
     marks = ["-ro", "-gx", "-mv", "-k^", "-bs", "-c>", "-y.", "-r<", "-go", "-ms"]
     fontsize = 14
 
     plt.figure(figsize=[5, 5], dpi=100)
     for result, name, mark in zip(results["time"], names, marks):
         plt.plot(result, mark, label=name)
-    plt.title("Inference Time", fontsize=fontsize)
-    plt.ylabel("Seconds", fontsize=fontsize)
+    #plt.title("Inference Time", fontsize=fontsize)
+    breakpoint()
+    plt.ylabel("Inference time (s)", fontsize=fontsize)
     plt.xlabel("Input length (s)", fontsize=fontsize)
     plt.xticks([i for i in range(len(result))], [2 ** i for i in range(len(result))], fontsize=fontsize)
     plt.grid()
-    plt.legend(fontsize=fontsize)
+    #plt.legend(fontsize=fontsize)
     plt.tight_layout()
     plt.savefig("time_v9.pdf", bbox_inches="tight")
     plt.savefig("time_v9.png", bbox_inches="tight")
@@ -188,8 +191,8 @@ def plot(results):
     plt.figure(figsize=[5, 5], dpi=100)
     for result, name, mark in zip(results["memory"], names, marks):
         plt.plot(result, mark, label=name)
-    plt.title("Memory", fontsize=fontsize)
-    plt.ylabel("GBs", fontsize=fontsize)
+    #plt.title("Memory", fontsize=fontsize)
+    plt.ylabel("Memory (GB)", fontsize=fontsize)
     plt.xlabel("Input length (s)", fontsize=fontsize)
     plt.xticks([i for i in range(len(result))], [2 ** i for i in range(len(result))], fontsize=fontsize)
     plt.grid()
@@ -207,6 +210,7 @@ if __name__ == "__main__":
         hparams = load_hyperpyyaml(fin, overrides)
 
     # Profile
+    """
     results = profile(hparams)
     with open(os.path.basename(hparams_file).replace(".yaml", ".pkl"), "wb") as f:
         pickle.dump(results, f)
@@ -223,4 +227,3 @@ if __name__ == "__main__":
         "memory": [x["memory"] for x in results],
     }
     plot(results)
-    """
