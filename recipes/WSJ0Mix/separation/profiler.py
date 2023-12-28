@@ -16,7 +16,7 @@ import time
 
 from hyperpyyaml import load_hyperpyyaml
 from matplotlib import pyplot as plt
-#import ptflops
+import ptflops
 import torch
 import torch.nn.functional as F
 import torch.utils.benchmark as benchmark
@@ -94,7 +94,7 @@ def profile(hparams):
     macs_results = []
 
     n_runs = 10
-    secs = [1, 2, 4, 8, 16, 32, 64] #, 128, 256, 512]
+    secs = [1, 2, 4, 8, 16, 32, 64, 128, 256]#, 512]
     for sec in secs:
         print(f"Trying {sec} seconds long input")
 
@@ -125,14 +125,12 @@ def profile(hparams):
         memory_results.append(total_peak_memory / n_runs)
 
         # This is deterministic, no need to average
-        """
         with torch.no_grad():
             with torch.cuda.amp.autocast():
                 macs, _ = ptflops.get_model_complexity_info(
                     model, (inputs.shape[1],), as_strings=True, print_per_layer_stat=False, verbose=False,
                 )
                 macs_results.append(macs)
-        """
 
     results = {
         "time": time_results,
@@ -169,7 +167,7 @@ def profile(hparams):
 
 
 def plot(results):
-    names = ["RE-SepFormer", "SkiM", "SepFormer-Light"]
+    names = ["RE-SepFormer", "SkiM", "SepFormer-Light", "MambaFormer", "MambaNet"]
     marks = ["-ro", "-gx", "-mv", "-k^", "-bs", "-c>", "-y.", "-r<", "-go", "-ms"]
     fontsize = 14
 
@@ -177,15 +175,14 @@ def plot(results):
     for result, name, mark in zip(results["time"], names, marks):
         plt.plot(result, mark, label=name)
     #plt.title("Inference Time", fontsize=fontsize)
-    breakpoint()
     plt.ylabel("Inference time (s)", fontsize=fontsize)
     plt.xlabel("Input length (s)", fontsize=fontsize)
     plt.xticks([i for i in range(len(result))], [2 ** i for i in range(len(result))], fontsize=fontsize)
     plt.grid()
-    #plt.legend(fontsize=fontsize)
+    plt.legend(fontsize=fontsize)
     plt.tight_layout()
-    plt.savefig("time_v9.pdf", bbox_inches="tight")
-    plt.savefig("time_v9.png", bbox_inches="tight")
+    plt.savefig("time_v10.pdf", bbox_inches="tight")
+    plt.savefig("time_v10.png", bbox_inches="tight")
     plt.close()
 
     plt.figure(figsize=[5, 5], dpi=100)
@@ -198,8 +195,8 @@ def plot(results):
     plt.grid()
     plt.legend(fontsize=fontsize)
     plt.tight_layout()
-    plt.savefig("memory_v9.pdf", bbox_inches="tight")
-    plt.savefig("memory_v9.png", bbox_inches="tight")
+    plt.savefig("memory_v10.pdf", bbox_inches="tight")
+    plt.savefig("memory_v10.png", bbox_inches="tight")
     plt.close()
 
 
@@ -210,15 +207,13 @@ if __name__ == "__main__":
         hparams = load_hyperpyyaml(fin, overrides)
 
     # Profile
-    """
     results = profile(hparams)
     with open(os.path.basename(hparams_file).replace(".yaml", ".pkl"), "wb") as f:
         pickle.dump(results, f)
 
     # Plot
-    """
     results = []
-    for filepath in ["resepformer.pkl", "skim.pkl", "sepformer-light.pkl"]:
+    for filepath in ["resepformer.pkl", "skim_A100.pkl", "sepformer-light.pkl", "resepformer_conformer_small_mamba.pkl", "resepformer_conformer_small_mambanet.pkl"]:
         with open(filepath, "rb") as f:
             result = pickle.load(f)
         results.append(result)

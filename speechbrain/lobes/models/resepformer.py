@@ -393,6 +393,7 @@ class SBTransformerBlock_wnormandskip(nn.Module):
         self.causal = causal
 
         if not use_conformer:
+            self.use_conformer = False
             self.mdl = TransformerEncoder(
                 num_layers=num_layers,
                 nhead=nhead,
@@ -424,6 +425,20 @@ class SBTransformerBlock_wnormandskip(nn.Module):
             )
             self.use_positional_encoding = False
             """
+
+            try:
+                from mamba import MixerModel
+            except ImportError:
+                from .mamba import MixerModel
+
+
+            self.mdl = MixerModel(
+                d_model=d_model,
+                n_layer=num_layers,
+            )
+            print(self.mdl)
+
+            """
             self.mdl = ConformerEncoder(
                 num_layers=num_layers,
                 nhead=nhead,
@@ -437,6 +452,7 @@ class SBTransformerBlock_wnormandskip(nn.Module):
                 attention_type=attention_type,
                 kernel_size=31,
             )
+            """
 
 
         self.use_norm = use_norm
@@ -466,8 +482,8 @@ class SBTransformerBlock_wnormandskip(nn.Module):
         src_mask = get_lookahead_mask(x) if self.causal else None
 
         if self.use_conformer:
-            out = self.mdl(x, src_mask=src_mask)[0]
-            #out = self.mdl(x)
+            #out = self.mdl(x, src_mask=src_mask)[0]
+            out = self.mdl(x)
         else:
             if self.use_positional_encoding:
                 pos_enc = self.pos_enc(x)

@@ -197,7 +197,7 @@ class ConformerEncoderLayer(nn.Module):
             d_conv=4,  # Local convolution width
             expand=2,  # Block expansion factor
         )
-
+        #"""
 
         self.convolution_module = ConvolutionModule(
             d_model, kernel_size, bias, activation, dropout, causal=causal
