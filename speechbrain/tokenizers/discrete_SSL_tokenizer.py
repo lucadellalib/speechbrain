@@ -26,6 +26,7 @@ class DiscreteSSLTokenizer:
     -------
     >>> import torch
     >>> inputs = torch.randint(0,1000,(3, 6, 2))
+    >>> inputs = torch.rand([3, 6, 2])
     >>> ssl_layer_num = [7,23]
     >>> deduplicate =[False, True]
     >>> bpe_tokenizers=[None, None]
@@ -89,9 +90,14 @@ class DiscreteSSLTokenizer:
                 ]
                 layer_token_ids = [
                     row.clone().detach() for row in unique_token_ids
+                    torch.tensor(
+                        row,
+                        dtype=torch.long,
+                        device=input.device,
+                    )
+                    for row in unique_token_ids
                 ]
                 tokens.extend(layer_token_ids)
-
             else:
                 tokens.extend(input[:, :, i])
 
